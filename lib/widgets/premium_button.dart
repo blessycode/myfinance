@@ -66,7 +66,7 @@ class _PremiumButtonState extends State<PremiumButton> with SingleTickerProvider
 
   @override
   Widget build(BuildContext context) {
-    final gradient = widget.gradient ?? AppColors.primaryGradient;
+    final fill = widget.backgroundColor ?? AppColors.primary;
 
     return ScaleTransition(
       scale: _scaleAnim,
@@ -79,18 +79,14 @@ class _PremiumButtonState extends State<PremiumButton> with SingleTickerProvider
           width: widget.width ?? double.infinity,
           height: widget.height,
           decoration: BoxDecoration(
-            gradient: widget.isOutlined ? null : (widget.backgroundColor != null ? null : gradient),
-            color: widget.isOutlined ? Colors.transparent : widget.backgroundColor,
+            gradient: widget.isOutlined ? null : widget.gradient,
+            color: widget.isOutlined ? Colors.transparent : fill,
             borderRadius: BorderRadius.circular(widget.borderRadius),
             border: widget.isOutlined
-                ? Border.all(color: AppColors.primary, width: 1.5)
+                ? Border.all(color: AppColors.primary, width: 1)
                 : null,
             boxShadow: widget.isOutlined ? null : [
-              BoxShadow(
-                color: AppColors.primary.withOpacity(0.35),
-                blurRadius: 16,
-                offset: const Offset(0, 6),
-              ),
+              BoxShadow(color: AppColors.primary.withOpacity(0.12), blurRadius: 10, offset: const Offset(0, 3)),
             ],
           ),
           child: Center(
@@ -148,16 +144,16 @@ class IconPillButton extends StatelessWidget {
       child: Column(
         children: [
           Container(
-            width: 56,
-            height: 56,
+          width: 50,
+          height: 50,
             decoration: BoxDecoration(
               color: backgroundColor,
-              borderRadius: BorderRadius.circular(18),
+              borderRadius: BorderRadius.circular(16),
             ),
-            child: Icon(icon, color: color, size: 24),
+            child: Icon(icon, color: color, size: 21),
           ),
           const SizedBox(height: 6),
-          Text(label, style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w500, color: color)),
+          Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w500, color: color)),
         ],
       ),
     );

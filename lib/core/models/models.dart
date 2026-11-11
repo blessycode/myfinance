@@ -4,11 +4,32 @@ enum TransactionType { income, expense }
 
 enum PaymentMethod { cash, creditCard, debitCard, bankTransfer, wallet }
 
+class AccountSummary {
+  final String id;
+  final String name;
+  final String type;
+  final String currency;
+  final double balance;
+  final IconData icon;
+  final Color? color;
+
+  const AccountSummary({
+    this.id = '',
+    required this.name,
+    required this.type,
+    required this.currency,
+    required this.balance,
+    required this.icon,
+    this.color,
+  });
+}
+
 class Transaction {
   final String id;
   final String title;
   final String merchant;
   final double amount;
+  final String currency;
   final TransactionType type;
   final String categoryId;
   final DateTime date;
@@ -21,6 +42,7 @@ class Transaction {
     required this.title,
     required this.merchant,
     required this.amount,
+    this.currency = 'USD',
     required this.type,
     required this.categoryId,
     required this.date,

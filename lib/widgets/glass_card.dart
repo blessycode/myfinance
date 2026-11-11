@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'dart:ui';
 import '../core/theme/app_colors.dart';
 
 class GlassCard extends StatelessWidget {
@@ -37,21 +36,17 @@ class GlassCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final defaultBg = isDark
-        ? Colors.white.withOpacity(0.06)
-        : Colors.white.withOpacity(0.75);
+    final defaultBg = isDark ? AppColors.cardDark : AppColors.cardLight;
     final defaultBorder = isDark
-        ? Colors.white.withOpacity(0.12)
-        : Colors.white.withOpacity(0.6);
+        ? Colors.white.withOpacity(0.08)
+        : const Color(0xFFE7E8E1);
     final defaultShadow = isDark
-        ? [BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 24, offset: const Offset(0, 8))]
-        : [BoxShadow(color: AppColors.primary.withOpacity(0.06), blurRadius: 24, offset: const Offset(0, 8)), BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 2))];
+        ? [BoxShadow(color: Colors.black.withOpacity(0.16), blurRadius: 12, offset: const Offset(0, 4))]
+        : [BoxShadow(color: Colors.black.withOpacity(0.025), blurRadius: 10, offset: const Offset(0, 3))];
 
     final card = ClipRRect(
       borderRadius: BorderRadius.circular(borderRadius),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: blurAmount, sigmaY: blurAmount),
-        child: Container(
+      child: Container(
           width: width,
           height: height,
           padding: padding,
@@ -66,7 +61,6 @@ class GlassCard extends StatelessWidget {
             boxShadow: boxShadow ?? defaultShadow,
           ),
           child: child,
-        ),
       ),
     );
 
@@ -106,13 +100,14 @@ class PremiumCard extends StatelessWidget {
     final bg = color ?? (isDark ? AppColors.cardDark : AppColors.cardLight);
     final shadows = isDark
         ? [BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 20, offset: const Offset(0, 6))]
-        : [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 16, offset: const Offset(0, 4)), BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 4, offset: const Offset(0, 1))];
+        : [BoxShadow(color: Colors.black.withOpacity(0.025), blurRadius: 10, offset: const Offset(0, 3))];
 
     final card = Container(
       padding: padding,
       decoration: BoxDecoration(
         gradient: gradient,
         color: gradient == null ? bg : null,
+        border: gradient == null ? Border.all(color: isDark ? AppColors.borderDark : AppColors.borderLight) : null,
         borderRadius: BorderRadius.circular(borderRadius),
         boxShadow: shadows,
       ),

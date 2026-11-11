@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'core/providers/theme_provider.dart';
 import 'core/theme/app_theme.dart';
+import 'core/brand/app_brand.dart';
 import 'features/splash/splash_screen.dart';
 
 void main() {
@@ -25,7 +26,7 @@ class MyFinanceApp extends StatelessWidget {
     return Consumer<ThemeProvider>(
       builder: (context, themeProvider, _) {
         return MaterialApp(
-          title: 'MyFinance',
+          title: AppBrand.name,
           debugShowCheckedModeBanner: false,
           themeMode: themeProvider.isDark ? ThemeMode.dark : ThemeMode.light,
           theme: AppTheme.lightTheme,

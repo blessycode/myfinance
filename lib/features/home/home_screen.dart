@@ -1,20 +1,25 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:percent_indicator/percent_indicator.dart';
 import 'package:provider/provider.dart';
 import '../../core/data/mock_data.dart';
 import '../../core/models/models.dart';
+import '../../core/providers/theme_provider.dart';
+import '../../core/services/currency_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/formatters.dart';
-import '../../widgets/glass_card.dart';
-import '../../widgets/premium_button.dart';
-import '../../core/providers/theme_provider.dart';
-import '../transactions/add_transaction_screen.dart';
-import '../transactions/transactions_screen.dart';
+import '../../widgets/account_card.dart';
+import '../../widgets/app_bottom_navigation.dart';
+import '../../widgets/financial_balance_card.dart';
+import '../../widgets/transaction_tile.dart';
 import '../analytics/analytics_screen.dart';
 import '../budgets/budgets_screen.dart';
+import '../goals/goals_screen.dart';
+import '../notifications/notifications_screen.dart';
 import '../profile/profile_screen.dart';
+import '../transactions/add_transaction_screen.dart';
+import '../transactions/transactions_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -26,475 +31,1668 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _navIndex = 0;
 
+  void _refresh() => setState(() {});
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: _buildBody(),
-      floatingActionButton: _buildFAB(),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      bottomNavigationBar: _buildBottomNav(),
-    );
-  }
-
-  Widget _buildBody() {
     final themeProvider = context.watch<ThemeProvider>();
-    switch (_navIndex) {
-      case 0: return const _HomeTab();
-      case 1: return const TransactionsScreen();
-      case 2: return const AnalyticsScreen();
-      case 3: return const BudgetsScreen();
-      case 4: return ProfileScreen(onThemeToggle: themeProvider.toggle, isDarkMode: themeProvider.isDark);
-      default: return const _HomeTab();
-    }
-  }
+    final isDark = themeProvider.isDark;
 
-  Widget _buildFAB() {
-    return GestureDetector(
-      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AddTransactionScreen())),
-      child: Container(
-        width: 64,
-        height: 64,
-        decoration: BoxDecoration(
-          gradient: AppColors.primaryGradient,
-          borderRadius: BorderRadius.circular(22),
-          boxShadow: [BoxShadow(color: AppColors.primary.withOpacity(0.45), blurRadius: 20, offset: const Offset(0, 6))],
-        ),
-        child: const Icon(Icons.add_rounded, color: Colors.white, size: 32),
-      ),
-    ).animate(onPlay: (c) => c.repeat(reverse: true)).shimmer(duration: 3000.ms, color: Colors.white.withOpacity(0.2));
-  }
-
-  Widget _buildBottomNav() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = isDark ? AppColors.cardDark : Colors.white;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(isDark ? 0.4 : 0.08), blurRadius: 24, offset: const Offset(0, -4))],
-      ),
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _navItem(0, Icons.home_rounded, Icons.home_outlined, 'Home'),
-              _navItem(1, Icons.receipt_long_rounded, Icons.receipt_long_outlined, 'Transactions'),
-              const SizedBox(width: 64),
-              _navItem(2, Icons.bar_chart_rounded, Icons.bar_chart_outlined, 'Analytics'),
-              _navItem(4, Icons.person_rounded, Icons.person_outline_rounded, 'Profile'),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _navItem(int index, IconData active, IconData inactive, String label) {
-    final isSelected = _navIndex == index;
-    return GestureDetector(
-      onTap: () => setState(() => _navIndex = index),
-      behavior: HitTestBehavior.opaque,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected ? AppColors.primary.withOpacity(0.12) : Colors.transparent,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(isSelected ? active : inactive, color: isSelected ? AppColors.primary : AppColors.textTertiaryLight, size: 24),
-            const SizedBox(height: 2),
-            Text(label, style: GoogleFonts.inter(fontSize: 10, fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400, color: isSelected ? AppColors.primary : AppColors.textTertiaryLight)),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ── Home Tab ────────────────────────────────────────────────────────────────────
-
-class _HomeTab extends StatelessWidget {
-  const _HomeTab();
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return CustomScrollView(
-      slivers: [
-        SliverToBoxAdapter(child: _buildHeader(context, isDark)),
-        SliverToBoxAdapter(child: _buildBalanceCard(context)),
-        SliverToBoxAdapter(child: _buildQuickActions(context)),
-        SliverToBoxAdapter(child: _buildAIScore(context)),
-        SliverToBoxAdapter(child: _buildCategoryGrid(context)),
-        SliverToBoxAdapter(child: _buildRecentTransactions(context)),
-        SliverToBoxAdapter(child: _buildUpcomingBills(context)),
-        const SliverToBoxAdapter(child: SizedBox(height: 100)),
-      ],
-    );
-  }
-
-  Widget _buildHeader(BuildContext context, bool isDark) {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: isDark
-              ? [AppColors.backgroundDark, AppColors.backgroundDark]
-              : [AppColors.backgroundLight, AppColors.backgroundLight],
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-        ),
-      ),
-      padding: EdgeInsets.only(top: MediaQuery.of(context).padding.top + 16, left: 24, right: 24, bottom: 16),
-      child: Row(
+    return Scaffold(
+      backgroundColor: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
+      body: IndexedStack(
+        index: _navIndex,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Good Morning,', style: GoogleFonts.inter(fontSize: 13, color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight)),
-                Text('Alex Johnson 👋', style: GoogleFonts.inter(fontSize: 22, fontWeight: FontWeight.w700, color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight, letterSpacing: -0.5)),
-              ],
-            ),
-          ),
-          // Notification bell
-          Container(
-            width: 44, height: 44,
-            decoration: BoxDecoration(
-              color: isDark ? AppColors.cardDark : Colors.white,
-              borderRadius: BorderRadius.circular(14),
-              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 8, offset: const Offset(0, 2))],
-            ),
-            child: Stack(
-              children: [
-                const Center(child: Icon(Icons.notifications_rounded, size: 22, color: AppColors.textSecondaryLight)),
-                Positioned(top: 10, right: 10, child: Container(width: 8, height: 8, decoration: const BoxDecoration(color: AppColors.expense, shape: BoxShape.circle))),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          // Avatar
-          CircleAvatar(
-            radius: 22,
-            backgroundColor: AppColors.primary,
-            child: Text('AJ', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.white)),
-          ),
-        ],
-      ).animate().fadeIn(duration: 500.ms),
-    );
-  }
-
-  Widget _buildBalanceCard(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
-      child: Container(
-        width: double.infinity,
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFF0F172A), Color(0xFF1A3A4A), Color(0xFF064E3B)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(28),
-          boxShadow: [BoxShadow(color: AppColors.secondary.withOpacity(0.5), blurRadius: 30, offset: const Offset(0, 10))],
-        ),
-        child: Stack(
-          children: [
-            // Background orb
-            Positioned(top: -30, right: -30, child: Container(width: 150, height: 150, decoration: BoxDecoration(shape: BoxShape.circle, color: AppColors.primary.withOpacity(0.12)))),
-            Positioned(bottom: -20, left: 20, child: Container(width: 100, height: 100, decoration: BoxDecoration(shape: BoxShape.circle, color: AppColors.accent.withOpacity(0.08)))),
-
-            Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Text('Total Balance', style: GoogleFonts.inter(fontSize: 13, color: Colors.white54, letterSpacing: 0.5)),
-                      const Spacer(),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.2), borderRadius: BorderRadius.circular(20)),
-                        child: Row(children: [
-                          const Icon(Icons.trending_up_rounded, size: 14, color: AppColors.success),
-                          const SizedBox(width: 4),
-                          Text('+8.2%', style: GoogleFonts.inter(fontSize: 12, color: AppColors.success, fontWeight: FontWeight.w600)),
-                        ]),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '\$${Formatters.amount(MockData.totalBalance)}',
-                    style: GoogleFonts.inter(fontSize: 42, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: -2),
-                  ),
-                  const SizedBox(height: 20),
-                  Row(
-                    children: [
-                      Expanded(child: _statItem('Income', MockData.monthlyIncomeCurrent, AppColors.success, Icons.arrow_downward_rounded)),
-                      Container(width: 1, height: 40, color: Colors.white.withOpacity(0.15)),
-                      Expanded(child: _statItem('Expenses', MockData.monthlyExpenseCurrent, AppColors.expense, Icons.arrow_upward_rounded)),
-                      Container(width: 1, height: 40, color: Colors.white.withOpacity(0.15)),
-                      Expanded(child: _statItem('Savings', MockData.savingsThisMonth, AppColors.accent, Icons.savings_rounded)),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ).animate().fadeIn(delay: 100.ms, duration: 500.ms).slideY(begin: 0.1),
-    );
-  }
-
-  Widget _statItem(String label, double amount, Color color, IconData icon) {
-    return Column(
-      children: [
-        Icon(icon, size: 16, color: color),
-        const SizedBox(height: 4),
-        Text('\$${Formatters.amount(amount)}', style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white, letterSpacing: -0.5)),
-        const SizedBox(height: 2),
-        Text(label, style: GoogleFonts.inter(fontSize: 11, color: Colors.white38)),
-      ],
-    );
-  }
-
-  Widget _buildQuickActions(BuildContext context) {
-    final actions = [
-      {'icon': Icons.add_circle_rounded, 'label': 'Expense', 'color': AppColors.expense, 'bg': const Color(0xFFEF444415)},
-      {'icon': Icons.trending_up_rounded, 'label': 'Income', 'color': AppColors.income, 'bg': const Color(0xFF22C55E15)},
-      {'icon': Icons.document_scanner_rounded, 'label': 'Scan', 'color': AppColors.accent, 'bg': const Color(0xFF06B6D415)},
-      {'icon': Icons.swap_horiz_rounded, 'label': 'Transfer', 'color': const Color(0xFF8B5CF6), 'bg': const Color(0xFF8B5CF615)},
-      {'icon': Icons.pie_chart_rounded, 'label': 'Budget', 'color': AppColors.warning, 'bg': const Color(0xFFF59E0B15)},
-    ];
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Quick Actions', style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700, color: Theme.of(context).brightness == Brightness.dark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight)),
-          const SizedBox(height: 14),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: actions.map((a) {
-              return IconPillButton(
-                icon: a['icon'] as IconData,
-                label: a['label'] as String,
-                color: a['color'] as Color,
-                backgroundColor: a['bg'] as Color,
+          _HomeTab(
+            onOpenNotifications: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const NotificationsScreen()),
               );
-            }).toList(),
+            },
+            onOpenProfile: () => setState(() => _navIndex = 4),
+            onOpenAnalytics: () => setState(() => _navIndex = 1),
+            onOpenBudgets: () => setState(() => _navIndex = 2),
+            onOpenGoals: () => setState(() => _navIndex = 3),
+            onDataChanged: _refresh,
           ),
-          const SizedBox(height: 20),
+          const AnalyticsScreen(),
+          const BudgetsScreen(),
+          const GoalsScreen(),
+          ProfileScreen(
+            onThemeToggle: themeProvider.toggle,
+            isDarkMode: isDark,
+            onDataChanged: _refresh,
+          ),
         ],
-      ).animate().fadeIn(delay: 200.ms, duration: 500.ms),
-    );
-  }
-
-  Widget _buildAIScore(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-      child: PremiumCard(
-        padding: const EdgeInsets.all(20),
-        child: Row(
-          children: [
-            CircularPercentIndicator(
-              radius: 44,
-              lineWidth: 8,
-              percent: MockData.aiHealthScore / 100,
-              center: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text('${MockData.aiHealthScore.toInt()}', style: GoogleFonts.inter(fontSize: 22, fontWeight: FontWeight.w800, color: AppColors.primary)),
-                  Text('/100', style: GoogleFonts.inter(fontSize: 10, color: AppColors.textTertiaryLight)),
-                ],
-              ),
-              progressColor: AppColors.primary,
-              backgroundColor: AppColors.primary.withOpacity(0.12),
-              circularStrokeCap: CircularStrokeCap.round,
-              animation: true,
-              animationDuration: 1200,
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(children: [
-                    const Icon(Icons.auto_awesome_rounded, size: 14, color: AppColors.primary),
-                    const SizedBox(width: 6),
-                    Text('AI Financial Health', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w500, color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight)),
-                  ]),
-                  const SizedBox(height: 4),
-                  Text('Excellent', style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.w700, color: AppColors.primary)),
-                  const SizedBox(height: 4),
-                  Text('Your finances are in great shape! Keep maintaining your savings rate.', style: GoogleFonts.inter(fontSize: 12, color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight, height: 1.4)),
-                ],
-              ),
+      ),
+      // Floating Action Button — bottom-right, above the nav bar
+      floatingActionButton: Container(
+        width: 56,
+        height: 56,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: AppColors.electricGradient,
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.primary.withOpacity(0.35),
+              blurRadius: 14,
+              offset: const Offset(0, 5),
             ),
           ],
         ),
-      ).animate().fadeIn(delay: 300.ms, duration: 500.ms),
+        child: FloatingActionButton(
+          elevation: 0,
+          backgroundColor: Colors.transparent,
+          foregroundColor: Colors.white,
+          shape: const CircleBorder(),
+          onPressed: _showQuickActionsSheet,
+          tooltip: 'Add Transaction or Account',
+          child: const Icon(Icons.add_rounded, size: 28),
+        ),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+      bottomNavigationBar: AppBottomNavigation(
+        selectedIndex: _navIndex,
+        onDestinationSelected: (index) => setState(() => _navIndex = index),
+      ),
     );
   }
 
-  Widget _buildCategoryGrid(BuildContext context) {
+  void _showQuickActionsSheet() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final topCategories = MockData.categories.where((c) => c.id != 'income' && c.id != 'freelance').take(6).toList();
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Categories', style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700, color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight)),
-          const SizedBox(height: 14),
-          GridView.builder(
-            physics: const NeverScrollableScrollPhysics(),
-            shrinkWrap: true,
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 3, childAspectRatio: 1.3, crossAxisSpacing: 12, mainAxisSpacing: 12),
-            itemCount: topCategories.length,
-            itemBuilder: (context, index) {
-              final cat = topCategories[index];
-              final spending = MockData.categorySpending[cat.id] ?? 0;
-              return PremiumCard(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Container(
-                      width: 36, height: 36,
-                      decoration: BoxDecoration(color: cat.color.withOpacity(0.12), borderRadius: BorderRadius.circular(10)),
-                      child: Icon(cat.icon, color: cat.color, size: 18),
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      backgroundColor: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
+      builder: (sheetContext) => ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.85,
+        ),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(22, 4, 22, 24),
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Financial Actions',
+                    style: GoogleFonts.inter(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
                     ),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Record multi-currency transactions, move money, or add accounts.',
+                    style: GoogleFonts.inter(
+                      fontSize: 12.5,
+                      color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  _buildSheetActionTile(
+                    sheetContext: sheetContext,
+                    icon: Icons.north_east_rounded,
+                    title: 'Add an Expense',
+                    subtitle: 'Record a purchase, bill, or service in any currency',
+                    color: AppColors.expense,
+                    onTap: () async {
+                      Navigator.pop(sheetContext);
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const AddTransactionScreen(initialType: TransactionType.expense),
+                        ),
+                      );
+                      setState(() {});
+                    },
+                  ),
+                  _buildSheetActionTile(
+                    sheetContext: sheetContext,
+                    icon: Icons.south_west_rounded,
+                    title: 'Add Income',
+                    subtitle: 'Record salary, dividends, or freelance earnings',
+                    color: AppColors.income,
+                    onTap: () async {
+                      Navigator.pop(sheetContext);
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const AddTransactionScreen(initialType: TransactionType.income),
+                        ),
+                      );
+                      setState(() {});
+                    },
+                  ),
+                  _buildSheetActionTile(
+                    sheetContext: sheetContext,
+                    icon: Icons.account_balance_rounded,
+                    title: 'Add New Account',
+                    subtitle: 'Create a bank, wallet or card in USD, EUR, GBP, ZAR, ZiG',
+                    color: AppColors.accent,
+                    onTap: () {
+                      Navigator.pop(sheetContext);
+                      _showAddAccountSheet();
+                    },
+                  ),
+                  _buildSheetActionTile(
+                    sheetContext: sheetContext,
+                    icon: Icons.swap_horiz_rounded,
+                    title: 'Transfer Money',
+                    subtitle: 'Move funds between your multi-currency accounts',
+                    color: AppColors.info,
+                    onTap: () {
+                      Navigator.pop(sheetContext);
+                      _showTransferSheet();
+                    },
+                  ),
+                  _buildSheetActionTile(
+                    sheetContext: sheetContext,
+                    icon: Icons.savings_outlined,
+                    title: 'Add to Savings Goal',
+                    subtitle: 'Contribute toward your vacation, laptop, or house fund',
+                    color: AppColors.primary,
+                    onTap: () {
+                      Navigator.pop(sheetContext);
+                      setState(() => _navIndex = 2);
+                    },
+                  ),
+                  _buildSheetActionTile(
+                    sheetContext: sheetContext,
+                    icon: Icons.receipt_long_outlined,
+                    title: 'Record Debt Payment',
+                    subtitle: 'Track repayments for loans or obligations',
+                    color: AppColors.categoryColors[2],
+                    onTap: () {
+                      Navigator.pop(sheetContext);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Debt repayment recorded in demo ledger.'),
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showAddAccountSheet() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final nameCtrl = TextEditingController();
+    final balanceCtrl = TextEditingController(text: '1000.00');
+    String selectedType = 'Bank Account';
+    String selectedCurrency = MockData.primaryCurrency;
+
+    final types = ['Bank Account', 'Savings', 'Cash Wallet', 'Mobile Money', 'Investment', 'Credit Card'];
+    final currencies = ['USD', 'EUR', 'GBP', 'ZAR', 'ZWG', 'BWP'];
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      backgroundColor: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
+      builder: (sheetCtx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.85,
+          ),
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(
+              24,
+              4,
+              24,
+              MediaQuery.of(sheetCtx).viewInsets.bottom + 24,
+            ),
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Add Financial Account',
+                    style: GoogleFonts.inter(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Support for multiple currencies at once with live conversions.',
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: nameCtrl,
+                    style: GoogleFonts.inter(fontSize: 14),
+                    decoration: InputDecoration(
+                      labelText: 'Account Name',
+                      hintText: 'e.g. Barclays Checking, EcoCash, Euro Card',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    'Account Type',
+                    style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: types.map((t) {
+                      final isSelected = selectedType == t;
+                      return ChoiceChip(
+                        label: Text(t),
+                        selected: isSelected,
+                        onSelected: (val) {
+                          if (val) setDialogState(() => selectedType = t);
+                        },
+                        selectedColor: AppColors.primary,
+                        labelStyle: GoogleFonts.inter(
+                          fontSize: 11,
+                          fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                          color: isSelected ? Colors.white : (isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    'Currency',
+                    style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: currencies.map((c) {
+                      final isSelected = selectedCurrency == c;
+                      return ChoiceChip(
+                        label: Text(c),
+                        selected: isSelected,
+                        onSelected: (val) {
+                          if (val) setDialogState(() => selectedCurrency = c);
+                        },
+                        selectedColor: AppColors.accent,
+                        labelStyle: GoogleFonts.inter(
+                          fontSize: 11,
+                          fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                          color: isSelected ? Colors.white : (isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 14),
+                  TextField(
+                    controller: balanceCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700),
+                    decoration: InputDecoration(
+                      labelText: 'Starting Balance ($selectedCurrency)',
+                      prefixText: '${CurrencyService.getSymbol(selectedCurrency)} ',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: FilledButton(
+                      onPressed: () {
+                        final balance = double.tryParse(balanceCtrl.text) ?? 0.0;
+                        final name = nameCtrl.text.trim().isNotEmpty
+                            ? nameCtrl.text.trim()
+                            : '$selectedCurrency $selectedType';
+
+                        IconData icon = Icons.account_balance_outlined;
+                        Color color = AppColors.primary;
+                        if (selectedType.contains('Savings')) {
+                          icon = Icons.savings_outlined;
+                          color = const Color(0xFF3B82F6);
+                        } else if (selectedType.contains('Mobile')) {
+                          icon = Icons.phone_android_rounded;
+                          color = const Color(0xFFF59E0B);
+                        } else if (selectedType.contains('Investment')) {
+                          icon = Icons.show_chart_rounded;
+                          color = const Color(0xFF8B5CF6);
+                        } else if (selectedType.contains('Credit')) {
+                          icon = Icons.credit_card_rounded;
+                          color = const Color(0xFFEC4899);
+                        } else if (selectedType.contains('Cash')) {
+                          icon = Icons.wallet_outlined;
+                          color = const Color(0xFF14B8A6);
+                        }
+
+                        setState(() {
+                          MockData.accounts.add(
+                            AccountSummary(
+                              id: 'acc_${DateTime.now().millisecondsSinceEpoch}',
+                              name: name,
+                              type: selectedType,
+                              currency: selectedCurrency,
+                              balance: balance,
+                              icon: icon,
+                              color: color,
+                            ),
+                          );
+                        });
+
+                        Navigator.pop(sheetCtx);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Added $name (${CurrencyService.format(balance, selectedCurrency)})'),
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
+                      },
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
+                      child: Text('Add Account', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSheetActionTile({
+    required BuildContext sheetContext,
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+      leading: Container(
+        width: 42,
+        height: 42,
+        decoration: BoxDecoration(
+          color: color.withOpacity(isDark ? 0.2 : 0.09),
+          borderRadius: BorderRadius.circular(13),
+        ),
+        child: Icon(icon, color: color, size: 20),
+      ),
+      title: Text(
+        title,
+        style: GoogleFonts.inter(
+          fontSize: 13.5,
+          fontWeight: FontWeight.w600,
+          color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+        ),
+      ),
+      subtitle: Text(
+        subtitle,
+        style: GoogleFonts.inter(
+          fontSize: 11.5,
+          color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+        ),
+      ),
+      trailing: Icon(
+        Icons.chevron_right_rounded,
+        size: 19,
+        color: isDark ? AppColors.textTertiaryDark : AppColors.textTertiaryLight,
+      ),
+      onTap: onTap,
+    );
+  }
+
+  void _showTransferSheet() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final amountCtrl = TextEditingController(text: '150.00');
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      backgroundColor: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
+      builder: (transferContext) => Padding(
+        padding: EdgeInsets.fromLTRB(
+          24,
+          8,
+          24,
+          MediaQuery.of(transferContext).viewInsets.bottom + 24,
+        ),
+        child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Transfer Between Accounts',
+                style: GoogleFonts.inter(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Transfers preserve original currencies and update ledger balances.',
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                ),
+              ),
+              const SizedBox(height: 18),
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: isDark ? AppColors.cardDark : AppColors.cardLightSecondary,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: isDark ? AppColors.borderDark : AppColors.borderLight),
+                ),
+                child: Column(
+                  children: [
+                    Row(
                       children: [
-                        Text(cat.name.split(' ').first, style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w500, color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight)),
-                        Text('\$${spending.toStringAsFixed(0)}', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight)),
+                        const Icon(Icons.account_balance_outlined, size: 18, color: AppColors.primary),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'From: ${MockData.accounts.first.name}',
+                            style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                        Text(
+                          '${CurrencyService.getSymbol(MockData.accounts.first.currency)}${Formatters.amount(MockData.accounts.first.balance)}',
+                          style: GoogleFonts.inter(fontSize: 12, color: AppColors.textSecondaryLight),
+                        ),
+                      ],
+                    ),
+                    const Divider(height: 20),
+                    Row(
+                      children: [
+                        const Icon(Icons.savings_outlined, size: 18, color: AppColors.info),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'To: ${MockData.accounts.length > 1 ? MockData.accounts[1].name : "Reserve"}',
+                            style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                        Text(
+                          MockData.accounts.length > 1
+                              ? '${CurrencyService.getSymbol(MockData.accounts[1].currency)}${Formatters.amount(MockData.accounts[1].balance)}'
+                              : '',
+                          style: GoogleFonts.inter(fontSize: 12, color: AppColors.textSecondaryLight),
+                        ),
                       ],
                     ),
                   ],
                 ),
-              );
-            },
-          ),
-          const SizedBox(height: 20),
-        ],
-      ).animate().fadeIn(delay: 350.ms, duration: 500.ms),
-    );
-  }
-
-  Widget _buildRecentTransactions(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final recent = MockData.transactions.take(5).toList();
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Text('Recent Transactions', style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700, color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight)),
-              const Spacer(),
-              GestureDetector(
-                onTap: () {},
-                child: Text('See All', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w500, color: AppColors.primary)),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: amountCtrl,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w700),
+                decoration: InputDecoration(
+                  labelText: 'Amount (${MockData.accounts.first.currency})',
+                  prefixText: '${CurrencyService.getSymbol(MockData.accounts.first.currency)} ',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+              ),
+              const SizedBox(height: 18),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: FilledButton(
+                  onPressed: () {
+                    Navigator.pop(transferContext);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Transferred ${CurrencyService.getSymbol(MockData.accounts.first.currency)}${amountCtrl.text}'),
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  },
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                  child: Text('Complete Transfer', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 14),
-          PremiumCard(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: ListView.separated(
-              physics: const NeverScrollableScrollPhysics(),
-              shrinkWrap: true,
-              itemCount: recent.length,
-              separatorBuilder: (_, __) => Divider(height: 1, color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.04)),
-              itemBuilder: (context, index) {
-                final t = recent[index];
-                final cat = MockData.categoryById(t.categoryId);
-                final isIncome = t.type == TransactionType.income;
-                return ListTile(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                  leading: Container(
-                    width: 44, height: 44,
-                    decoration: BoxDecoration(color: cat.color.withOpacity(0.12), borderRadius: BorderRadius.circular(14)),
-                    child: Icon(cat.icon, color: cat.color, size: 22),
-                  ),
-                  title: Text(t.title, style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w500, color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight)),
-                  subtitle: Text(Formatters.relativeDate(t.date), style: GoogleFonts.inter(fontSize: 12, color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight)),
-                  trailing: Text(
-                    '${isIncome ? '+' : '-'}\$${t.amount.toStringAsFixed(2)}',
-                    style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w600, color: isIncome ? AppColors.income : AppColors.expense),
-                  ),
-                );
-              },
-            ),
-          ),
-          const SizedBox(height: 20),
-        ],
-      ).animate().fadeIn(delay: 400.ms, duration: 500.ms),
-    );
-  }
-
-  Widget _buildUpcomingBills(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Upcoming Bills', style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700, color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight)),
-          const SizedBox(height: 14),
-          SizedBox(
-            height: 130,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: MockData.bills.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 12),
-              itemBuilder: (context, index) {
-                final bill = MockData.bills[index];
-                final isDueSoon = bill.isDueSoon;
-                return PremiumCard(
-                  padding: const EdgeInsets.all(16),
-                  child: SizedBox(
-                    width: 130,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Container(
-                          width: 36, height: 36,
-                          decoration: BoxDecoration(color: bill.color.withOpacity(0.12), borderRadius: BorderRadius.circular(10)),
-                          child: Icon(bill.icon, color: bill.color, size: 18),
-                        ),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(bill.name, style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight)),
-                            Text('\$${bill.amount.toStringAsFixed(2)}', style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w700, color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight)),
-                            Text('Due in ${bill.daysUntilDue}d', style: GoogleFonts.inter(fontSize: 11, color: isDueSoon ? AppColors.warning : (isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight))),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
-      ).animate().fadeIn(delay: 450.ms, duration: 500.ms),
+        ),
+      ),
     );
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Home Tab Presentation
+// ─────────────────────────────────────────────────────────────────────────────
 
+class _HomeTab extends StatefulWidget {
+  final VoidCallback onOpenNotifications;
+  final VoidCallback onOpenProfile;
+  final VoidCallback onOpenAnalytics;
+  final VoidCallback onOpenBudgets;
+  final VoidCallback onOpenGoals;
+  final VoidCallback onDataChanged;
+
+  const _HomeTab({
+    required this.onOpenNotifications,
+    required this.onOpenProfile,
+    required this.onOpenAnalytics,
+    required this.onOpenBudgets,
+    required this.onOpenGoals,
+    required this.onDataChanged,
+  });
+
+  @override
+  State<_HomeTab> createState() => _HomeTabState();
+}
+
+class _HomeTabState extends State<_HomeTab> {
+  bool _isBalanceVisible = true;
+
+  String _getTimeGreeting() {
+    final hour = DateTime.now().hour;
+    if (hour < 12) return 'Good morning,';
+    if (hour < 17) return 'Good afternoon,';
+    return 'Good evening,';
+  }
+
+  void _showAddAccountSheet() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final nameCtrl = TextEditingController();
+    final balanceCtrl = TextEditingController(text: '1000.00');
+    String selectedType = 'Bank Account';
+    String selectedCurrency = MockData.primaryCurrency;
+
+    final types = ['Bank Account', 'Savings', 'Cash Wallet', 'Mobile Money', 'Investment', 'Credit Card'];
+    final currencies = ['USD', 'EUR', 'GBP', 'ZAR', 'ZWG', 'BWP'];
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      backgroundColor: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
+      builder: (sheetCtx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.85,
+          ),
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(
+              24,
+              4,
+              24,
+              MediaQuery.of(sheetCtx).viewInsets.bottom + 24,
+            ),
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Add Financial Account',
+                    style: GoogleFonts.inter(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Multi-currency accounts update total portfolio value in real-time.',
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: nameCtrl,
+                    style: GoogleFonts.inter(fontSize: 14),
+                    decoration: InputDecoration(
+                      labelText: 'Account Name',
+                      hintText: 'e.g. Barclays Checking, EcoCash, Euro Card',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Text('Account Type', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: types.map((t) {
+                      final isSelected = selectedType == t;
+                      return ChoiceChip(
+                        label: Text(t),
+                        selected: isSelected,
+                        onSelected: (val) {
+                          if (val) setDialogState(() => selectedType = t);
+                        },
+                        selectedColor: AppColors.primary,
+                        labelStyle: GoogleFonts.inter(
+                          fontSize: 11,
+                          fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                          color: isSelected ? Colors.white : (isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 14),
+                  Text('Currency', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: currencies.map((c) {
+                      final isSelected = selectedCurrency == c;
+                      return ChoiceChip(
+                        label: Text(c),
+                        selected: isSelected,
+                        onSelected: (val) {
+                          if (val) setDialogState(() => selectedCurrency = c);
+                        },
+                        selectedColor: AppColors.accent,
+                        labelStyle: GoogleFonts.inter(
+                          fontSize: 11,
+                          fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                          color: isSelected ? Colors.white : (isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 14),
+                  TextField(
+                    controller: balanceCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700),
+                    decoration: InputDecoration(
+                      labelText: 'Starting Balance ($selectedCurrency)',
+                      prefixText: '${CurrencyService.getSymbol(selectedCurrency)} ',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: FilledButton(
+                      onPressed: () {
+                        final balance = double.tryParse(balanceCtrl.text) ?? 0.0;
+                        final name = nameCtrl.text.trim().isNotEmpty
+                            ? nameCtrl.text.trim()
+                            : '$selectedCurrency $selectedType';
+
+                        IconData icon = Icons.account_balance_outlined;
+                        Color color = AppColors.primary;
+                        if (selectedType.contains('Savings')) {
+                          icon = Icons.savings_outlined;
+                          color = const Color(0xFF3B82F6);
+                        } else if (selectedType.contains('Mobile')) {
+                          icon = Icons.phone_android_rounded;
+                          color = const Color(0xFFF59E0B);
+                        } else if (selectedType.contains('Investment')) {
+                          icon = Icons.show_chart_rounded;
+                          color = const Color(0xFF8B5CF6);
+                        } else if (selectedType.contains('Credit')) {
+                          icon = Icons.credit_card_rounded;
+                          color = const Color(0xFFEC4899);
+                        } else if (selectedType.contains('Cash')) {
+                          icon = Icons.wallet_outlined;
+                          color = const Color(0xFF14B8A6);
+                        }
+
+                        setState(() {
+                          MockData.accounts.add(
+                            AccountSummary(
+                              id: 'acc_${DateTime.now().millisecondsSinceEpoch}',
+                              name: name,
+                              type: selectedType,
+                              currency: selectedCurrency,
+                              balance: balance,
+                              icon: icon,
+                              color: color,
+                            ),
+                          );
+                        });
+                        widget.onDataChanged();
+                        Navigator.pop(sheetCtx);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Added $name (${CurrencyService.format(balance, selectedCurrency)})'),
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
+                      },
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
+                      child: Text('Add Account', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _switchDisplayCurrency() async {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    const currencies = ['USD', 'EUR', 'GBP', 'ZAR', 'ZWG', 'BWP'];
+
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      backgroundColor: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
+      builder: (ctx) => ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.6),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+          child: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Switch Portfolio Currency',
+                  style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Converts multi-currency balances to selected base currency.',
+                  style: GoogleFonts.inter(fontSize: 12, color: AppColors.textSecondaryLight),
+                ),
+                const SizedBox(height: 14),
+                ...currencies.map((c) {
+                  final rate = CurrencyService.rates[c];
+                  final isSelected = MockData.primaryCurrency == c;
+                  return ListTile(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+                    leading: Text(rate?.flag ?? '🌐', style: const TextStyle(fontSize: 22)),
+                    title: Text('$c - ${rate?.name}', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+                    trailing: isSelected
+                        ? const Icon(Icons.check_circle_rounded, color: AppColors.accent, size: 20)
+                        : null,
+                    onTap: () => Navigator.pop(ctx, c),
+                  );
+                }),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    if (selected != null) {
+      setState(() {
+        MockData.primaryCurrency = selected;
+      });
+      widget.onDataChanged();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Viewing portfolio in $selected (${CurrencyService.getSymbol(selected)})'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final convertedTotal = MockData.totalBalance;
+    final primaryCurr = MockData.primaryCurrency;
+    final currSymbol = CurrencyService.getSymbol(primaryCurr);
+
+    return CustomScrollView(
+      slivers: [
+        // App Header
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(
+              22,
+              MediaQuery.of(context).padding.top + 12,
+              22,
+              14,
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _getTimeGreeting(),
+                        style: GoogleFonts.inter(
+                          fontSize: 12.5,
+                          color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Alex Johnson',
+                        style: GoogleFonts.inter(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: -0.4,
+                          color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // Currency Switcher Quick Pill
+                GestureDetector(
+                  onTap: _switchDisplayCurrency,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: isDark ? AppColors.cardDarkSecondary : const Color(0xFFEFF3EE),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: isDark ? AppColors.borderDark : AppColors.borderLight),
+                    ),
+                    child: Row(
+                      children: [
+                        Text(
+                          CurrencyService.rates[primaryCurr]?.flag ?? '🌐',
+                          style: const TextStyle(fontSize: 14),
+                        ),
+                        const SizedBox(width: 5),
+                        Text(
+                          primaryCurr,
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: isDark ? AppColors.accentLight : AppColors.primary,
+                          ),
+                        ),
+                        const SizedBox(width: 2),
+                        Icon(
+                          Icons.arrow_drop_down_rounded,
+                          size: 16,
+                          color: isDark ? AppColors.textTertiaryDark : AppColors.textSecondaryLight,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                // Notification Button with badge
+                GestureDetector(
+                  onTap: widget.onOpenNotifications,
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: isDark ? AppColors.cardDark : Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: isDark ? AppColors.borderDark : AppColors.borderLight,
+                      ),
+                    ),
+                    child: Stack(
+                      children: [
+                        Center(
+                          child: Icon(
+                            Icons.notifications_outlined,
+                            size: 20,
+                            color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                          ),
+                        ),
+                        Positioned(
+                          top: 9,
+                          right: 9,
+                          child: Container(
+                            width: 7,
+                            height: 7,
+                            decoration: const BoxDecoration(
+                              color: AppColors.expense,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                // Avatar
+                GestureDetector(
+                  onTap: widget.onOpenProfile,
+                  child: CircleAvatar(
+                    radius: 20,
+                    backgroundColor: AppColors.primary,
+                    child: Text(
+                      'AJ',
+                      style: GoogleFonts.inter(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ).animate().fadeIn(duration: 400.ms),
+          ),
+        ),
+
+        // Financial Hero Balance Card (Multi-Currency converted)
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 2, 20, 16),
+            child: FinancialBalanceCard(
+              totalBalance: convertedTotal,
+              monthlyIncome: CurrencyService.convert(MockData.monthlyIncomeCurrent, 'USD', primaryCurr),
+              monthlyExpense: CurrencyService.convert(MockData.monthlyExpenseCurrent, 'USD', primaryCurr),
+              monthlySavings: CurrencyService.convert(MockData.savingsThisMonth, 'USD', primaryCurr),
+              currency: primaryCurr,
+              percentageChange: '+8.2%',
+              isBalanceVisible: _isBalanceVisible,
+              onToggleVisibility: () => setState(() => _isBalanceVisible = !_isBalanceVisible),
+            ).animate().fadeIn(delay: 80.ms, duration: 450.ms),
+          ),
+        ),
+
+        // Multi-Currency Quick Holdings Strip
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(22, 0, 22, 14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      'Multi-Currency Holdings',
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                      ),
+                    ),
+                    const Spacer(),
+                    Text(
+                      'Live Rates Pegged',
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        color: AppColors.income,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  height: 38,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    children: [
+                      _buildCurrencyBadge('USD', '\$4,820', isDark),
+                      const SizedBox(width: 8),
+                      _buildCurrencyBadge('EUR', '€11,500', isDark),
+                      const SizedBox(width: 8),
+                      _buildCurrencyBadge('ZWG', 'ZiG 35,000', isDark),
+                      const SizedBox(width: 8),
+                      _buildCurrencyBadge('ZAR', 'R25,000', isDark),
+                      const SizedBox(width: 8),
+                      _buildCurrencyBadge('GBP', '£2,100', isDark),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        // Quick Actions Row
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildQuickActions(context, isDark),
+                const SizedBox(height: 20),
+              ],
+            ),
+          ),
+        ),
+
+        // Accounts Carousel (With Add Account button!)
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 22),
+                  child: Row(
+                    children: [
+                      Text(
+                        'Your Accounts',
+                        style: GoogleFonts.inter(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                        ),
+                      ),
+                      const Spacer(),
+                      GestureDetector(
+                        onTap: _showAddAccountSheet,
+                        child: Text(
+                          '+ Add Account',
+                          style: GoogleFonts.inter(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                            color: isDark ? AppColors.accentLight : AppColors.primary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                // Height increased to 124 to guarantee zero overflow
+                SizedBox(
+                  height: 124,
+                  child: ListView.separated(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    scrollDirection: Axis.horizontal,
+                    itemCount: MockData.accounts.length + 1,
+                    separatorBuilder: (_, __) => const SizedBox(width: 12),
+                    itemBuilder: (context, index) {
+                      if (index == MockData.accounts.length) {
+                        return AccountCard(
+                          isAddButton: true,
+                          onTap: _showAddAccountSheet,
+                        );
+                      }
+                      return AccountCard(
+                        account: MockData.accounts[index],
+                        onTap: () {
+                          final acc = MockData.accounts[index];
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('${acc.name}: ${CurrencyService.format(acc.balance, acc.currency)}'),
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ).animate().fadeIn(delay: 150.ms, duration: 400.ms),
+          ),
+        ),
+
+        // Financial Insights Banner
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.cardDark : AppColors.cardLight,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(
+                  color: isDark ? AppColors.borderDark : AppColors.borderLight,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(isDark ? 0.25 : 0.025),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? AppColors.primary.withOpacity(0.2)
+                          : AppColors.primary.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(13),
+                    ),
+                    child: const Icon(
+                      Icons.auto_awesome_rounded,
+                      color: AppColors.accent,
+                      size: 22,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text(
+                              'Smart Multi-Currency Insight',
+                              style: GoogleFonts.inter(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                              ),
+                            ),
+                            const Spacer(),
+                            Text(
+                              'Calculated',
+                              style: GoogleFonts.inter(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.income,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          'Your portfolio spans ${MockData.accounts.length} accounts across USD, EUR, ZWG, and ZAR. Net converted value is $currSymbol${Formatters.amount(convertedTotal)}.',
+                          style: GoogleFonts.inter(
+                            fontSize: 11.5,
+                            height: 1.4,
+                            color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ).animate().fadeIn(delay: 200.ms, duration: 400.ms),
+          ),
+        ),
+
+        // Recent Transactions Section
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      'Recent Transactions',
+                      style: GoogleFonts.inter(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                      ),
+                    ),
+                    const Spacer(),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const TransactionsScreen()),
+                        );
+                      },
+                      style: TextButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                      ),
+                      child: Text(
+                        'See all',
+                        style: GoogleFonts.inter(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                          color: isDark ? AppColors.accentLight : AppColors.primary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  decoration: BoxDecoration(
+                    color: isDark ? AppColors.cardDark : AppColors.cardLight,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: isDark ? AppColors.borderDark : AppColors.borderLight,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(isDark ? 0.25 : 0.025),
+                        blurRadius: 10,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: ListView.separated(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    physics: const NeverScrollableScrollPhysics(),
+                    shrinkWrap: true,
+                    itemCount: MockData.transactions.take(5).length,
+                    separatorBuilder: (_, __) => Divider(
+                      height: 1,
+                      indent: 68,
+                      endIndent: 16,
+                      color: isDark ? AppColors.borderDark : AppColors.borderLight,
+                    ),
+                    itemBuilder: (context, index) {
+                      final tx = MockData.transactions[index];
+                      final cat = MockData.categoryById(tx.categoryId);
+                      return TransactionTile(
+                        transaction: tx,
+                        category: cat,
+                        onTap: () => _showTransactionDetails(context, tx, cat, isDark),
+                      );
+                    },
+                  ),
+                ).animate().fadeIn(delay: 250.ms, duration: 400.ms),
+                const SizedBox(height: 20),
+              ],
+            ),
+          ),
+        ),
+
+        // Upcoming Bills Section
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Upcoming Obligations',
+                  style: GoogleFonts.inter(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  height: 104,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: MockData.bills.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 12),
+                    itemBuilder: (context, index) {
+                      final bill = MockData.bills[index];
+                      final isDueSoon = bill.isDueSoon;
+                      return Container(
+                        width: 140,
+                        padding: const EdgeInsets.all(13),
+                        decoration: BoxDecoration(
+                          color: isDark ? AppColors.cardDark : AppColors.cardLight,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: isDark ? AppColors.borderDark : AppColors.borderLight,
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  width: 28,
+                                  height: 28,
+                                  decoration: BoxDecoration(
+                                    color: bill.color.withOpacity(0.12),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Icon(bill.icon, color: bill.color, size: 15),
+                                ),
+                                const Spacer(),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: isDueSoon
+                                        ? AppColors.warning.withOpacity(0.12)
+                                        : (isDark ? Colors.white.withOpacity(0.06) : const Color(0xFFEFF3EE)),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    '${bill.daysUntilDue}d',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                      color: isDueSoon ? AppColors.warning : (isDark ? AppColors.textTertiaryDark : AppColors.textSecondaryLight),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  bill.name,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: GoogleFonts.inter(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                                  ),
+                                ),
+                                Text(
+                                  '\$${Formatters.amount(bill.amount)}',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 13.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ).animate().fadeIn(delay: 300.ms, duration: 400.ms),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCurrencyBadge(String code, String formatted, bool isDark) {
+    final flag = CurrencyService.rates[code]?.flag ?? '🌐';
+    final isSelected = MockData.primaryCurrency == code;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: isSelected
+            ? (isDark ? AppColors.primary.withOpacity(0.25) : AppColors.primary.withOpacity(0.1))
+            : (isDark ? AppColors.cardDark : Colors.white),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: isSelected
+              ? AppColors.accent
+              : (isDark ? AppColors.borderDark : AppColors.borderLight),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(flag, style: const TextStyle(fontSize: 13)),
+          const SizedBox(width: 5),
+          Text(
+            formatted,
+            style: GoogleFonts.inter(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w600,
+              color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickActions(BuildContext context, bool isDark) {
+    final actions = [
+      (
+        'Expense',
+        Icons.north_east_rounded,
+        AppColors.expense,
+        () async {
+          await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const AddTransactionScreen(initialType: TransactionType.expense),
+            ),
+          );
+          setState(() {});
+        },
+      ),
+      (
+        'Income',
+        Icons.south_west_rounded,
+        AppColors.income,
+        () async {
+          await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const AddTransactionScreen(initialType: TransactionType.income),
+            ),
+          );
+          setState(() {});
+        },
+      ),
+      (
+        'Budget',
+        Icons.pie_chart_outline_rounded,
+        AppColors.accent,
+        widget.onOpenBudgets,
+      ),
+      (
+        'Goals',
+        Icons.flag_rounded,
+        AppColors.warning,
+        widget.onOpenGoals,
+      ),
+      (
+        'Analytics',
+        Icons.insights_rounded,
+        AppColors.info,
+        widget.onOpenAnalytics,
+      ),
+    ];
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: actions.map((a) {
+        return GestureDetector(
+          onTap: a.$4,
+          child: Column(
+            children: [
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: isDark ? AppColors.cardDark : Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: isDark ? AppColors.borderDark : AppColors.borderLight,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(isDark ? 0.25 : 0.025),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Center(
+                  child: Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      color: a.$3.withOpacity(isDark ? 0.18 : 0.10),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(a.$2, color: a.$3, size: 18),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                a.$1,
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                ),
+              ),
+            ],
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  void _showTransactionDetails(
+    BuildContext context,
+    Transaction t,
+    Category cat,
+    bool isDark,
+  ) {
+    final sym = CurrencyService.getSymbol(t.currency);
+
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: cat.color.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Icon(cat.icon, color: cat.color, size: 24),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          t.title,
+                          style: GoogleFonts.inter(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                          ),
+                        ),
+                        Text(
+                          t.merchant,
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Text(
+                    '${t.type == TransactionType.income ? '+' : '-'}$sym${Formatters.amount(t.amount)}',
+                    style: GoogleFonts.inter(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: t.type == TransactionType.income ? AppColors.income : AppColors.expense,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: isDark ? AppColors.cardDark : AppColors.cardLightSecondary,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: isDark ? AppColors.borderDark : AppColors.borderLight),
+                ),
+                child: Column(
+                  children: [
+                    _buildDetailRow('Category', cat.name, isDark),
+                    const Divider(height: 16),
+                    _buildDetailRow('Original Currency', '${t.currency} ($sym)', isDark),
+                    const Divider(height: 16),
+                    _buildDetailRow('Date & Time', Formatters.dateTime(t.date), isDark),
+                    const Divider(height: 16),
+                    _buildDetailRow('Payment Method', t.paymentMethod.name.toUpperCase(), isDark),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  style: OutlinedButton.styleFrom(
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                  child: const Text('Close'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value, bool isDark) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: GoogleFonts.inter(
+            fontSize: 12.5,
+            color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+          ),
+        ),
+        Text(
+          value,
+          style: GoogleFonts.inter(
+            fontSize: 12.5,
+            fontWeight: FontWeight.w600,
+            color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+          ),
+        ),
+      ],
+    );
+  }
+}

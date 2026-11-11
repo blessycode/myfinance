@@ -1,40 +1,218 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme/app_colors.dart';
-import '../../widgets/glass_card.dart';
+import '../../widgets/app_section_header.dart';
 
-class NotificationsScreen extends StatelessWidget {
+class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
+
+  @override
+  State<NotificationsScreen> createState() => _NotificationsScreenState();
+}
+
+class _NotificationsScreenState extends State<NotificationsScreen> {
+  late final List<_NoticeItem> _notices = [
+    _NoticeItem(
+      icon: Icons.warning_amber_rounded,
+      title: 'Budget Alert: Shopping at 97%',
+      body: 'Your Shopping budget is approaching its limit. Only \$11.01 remains for this period.',
+      time: '2h ago',
+      color: AppColors.warning,
+      isUnread: true,
+      category: 'Budget',
+    ),
+    _NoticeItem(
+      icon: Icons.south_west_rounded,
+      title: 'Direct Deposit Received',
+      body: 'A \$5,200.00 payroll deposit from TechCorp Inc. was credited to Everyday Account.',
+      time: '3h ago',
+      color: AppColors.income,
+      isUnread: true,
+      category: 'Deposit',
+    ),
+    _NoticeItem(
+      icon: Icons.event_outlined,
+      title: 'Upcoming Bill: Netflix',
+      body: 'Netflix subscription for \$15.99 is scheduled to renew in 2 days.',
+      time: '5h ago',
+      color: AppColors.categoryColors[4],
+      isUnread: false,
+      category: 'Bill',
+    ),
+    _NoticeItem(
+      icon: Icons.track_changes_rounded,
+      title: 'Milestone Progress: Europe Vacation',
+      body: 'Congratulations! Your vacation savings goal is now 64% funded (\$3,200 / \$5,000).',
+      time: 'Yesterday',
+      color: AppColors.primary,
+      isUnread: false,
+      category: 'Goal',
+    ),
+    _NoticeItem(
+      icon: Icons.insights_rounded,
+      title: 'Weekly Financial Digest Ready',
+      body: 'You preserved \$1,450.75 in savings this week with lower dining out expenses.',
+      time: 'Yesterday',
+      color: AppColors.categoryColors[1],
+      isUnread: false,
+      category: 'Insight',
+    ),
+    _NoticeItem(
+      icon: Icons.receipt_long_outlined,
+      title: 'Review Large Transaction',
+      body: 'A \$420.00 purchase at Delta Airlines was recorded. Confirm the category assignment.',
+      time: '3 days ago',
+      color: AppColors.expense,
+      isUnread: false,
+      category: 'Security',
+    ),
+  ];
+
+  void _markAllAsRead() {
+    setState(() {
+      for (final n in _notices) {
+        n.isUnread = false;
+      }
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('All notifications marked as read'),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final groups = _buildNotifications();
 
     return Scaffold(
       backgroundColor: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
       body: SafeArea(
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Top Section Bar
             Padding(
-              padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
+              padding: const EdgeInsets.fromLTRB(16, 14, 20, 10),
               child: Row(
                 children: [
-                  Text('Notifications', style: GoogleFonts.inter(fontSize: 28, fontWeight: FontWeight.w800, color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight, letterSpacing: -1)),
-                  const Spacer(),
-                  TextButton(
-                    onPressed: () {},
-                    child: Text('Mark all read', style: GoogleFonts.inter(fontSize: 13, color: AppColors.primary, fontWeight: FontWeight.w500)),
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back_rounded),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: AppSectionHeader(
+                      title: 'Notifications',
+                      subtitle: 'Alerts, scheduled bills and financial updates',
+                      actionLabel: 'Mark all read',
+                      onAction: _markAllAsRead,
+                    ),
                   ),
                 ],
-              ).animate().fadeIn(duration: 400.ms),
+              ),
             ),
+
+            // Notification List
             Expanded(
-              child: ListView(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                children: groups.entries.map((e) => _buildGroup(e.key, e.value, isDark)).toList(),
+              child: ListView.separated(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                itemCount: _notices.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                itemBuilder: (context, index) {
+                  final notice = _notices[index];
+                  return Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () {
+                        if (notice.isUnread) setState(() => notice.isUnread = false);
+                      },
+                      borderRadius: BorderRadius.circular(18),
+                      child: Container(
+                        padding: const EdgeInsets.all(15),
+                        decoration: BoxDecoration(
+                          color: isDark ? AppColors.cardDark : AppColors.cardLight,
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(
+                            color: notice.isUnread
+                                ? (isDark ? AppColors.primaryLight : AppColors.primary.withOpacity(0.4))
+                                : (isDark ? AppColors.borderDark : AppColors.borderLight),
+                            width: notice.isUnread ? 1.4 : 1,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(isDark ? 0.2 : 0.025),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              width: 38,
+                              height: 38,
+                              decoration: BoxDecoration(
+                                color: notice.color.withOpacity(isDark ? 0.2 : 0.1),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Icon(notice.icon, color: notice.color, size: 19),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          notice.title,
+                                          style: GoogleFonts.inter(
+                                            fontSize: 13.5,
+                                            fontWeight: notice.isUnread ? FontWeight.w700 : FontWeight.w600,
+                                            color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                                          ),
+                                        ),
+                                      ),
+                                      if (notice.isUnread)
+                                        Container(
+                                          width: 7,
+                                          height: 7,
+                                          decoration: const BoxDecoration(
+                                            color: AppColors.primary,
+                                            shape: BoxShape.circle,
+                                          ),
+                                        ),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        notice.time,
+                                        style: GoogleFonts.inter(
+                                          fontSize: 11,
+                                          color: isDark ? AppColors.textTertiaryDark : AppColors.textSecondaryLight,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    notice.body,
+                                    style: GoogleFonts.inter(
+                                      fontSize: 12,
+                                      height: 1.4,
+                                      color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
               ),
             ),
           ],
@@ -42,82 +220,24 @@ class NotificationsScreen extends StatelessWidget {
       ),
     );
   }
-
-  Map<String, List<_Notification>> _buildNotifications() {
-    return {
-      'Today': [
-        _Notification(icon: '⚠️', title: 'Budget Alert', body: 'Your Shopping budget is 97% full. Only \$11.01 remaining.', time: '2h ago', color: AppColors.warning, isUnread: true),
-        _Notification(icon: '💰', title: 'Salary Received', body: 'TechCorp Inc. deposited \$5,200.00 to your account.', time: '3h ago', color: AppColors.success, isUnread: true),
-        _Notification(icon: '📅', title: 'Bill Due Soon', body: 'Netflix subscription (\$15.99) is due in 2 days.', time: '5h ago', color: AppColors.accent, isUnread: false),
-      ],
-      'Yesterday': [
-        _Notification(icon: '🏆', title: 'Savings Milestone!', body: 'You\'ve saved \$3,200 towards your Europe Vacation goal. 64% complete!', time: '1d ago', color: AppColors.primary, isUnread: false),
-        _Notification(icon: '🤖', title: 'AI Weekly Report', body: 'Your weekly financial report is ready. You spent 12% less than last week!', time: '1d ago', color: const Color(0xFF8B5CF6), isUnread: false),
-      ],
-      'This Week': [
-        _Notification(icon: '🔴', title: 'Unusual Spending', body: 'We detected an unusual transaction of \$420.00 at Delta Airlines.', time: '3d ago', color: AppColors.expense, isUnread: false),
-        _Notification(icon: '💡', title: 'Tip of the Week', body: 'Switching to meal prep could save you up to \$120 per month on dining out.', time: '5d ago', color: AppColors.warning, isUnread: false),
-      ],
-    };
-  }
-
-  Widget _buildGroup(String label, List<_Notification> notifs, bool isDark) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(bottom: 10),
-          child: Text(label, style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight, letterSpacing: 0.5)),
-        ),
-        ...notifs.asMap().entries.map((e) => _buildNotifCard(e.value, isDark, e.key)),
-        const SizedBox(height: 16),
-      ],
-    );
-  }
-
-  Widget _buildNotifCard(_Notification n, bool isDark, int index) {
-    return GlassCard(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(16),
-      borderColor: n.isUnread ? n.color.withOpacity(0.4) : null,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 44, height: 44,
-            decoration: BoxDecoration(color: n.color.withOpacity(0.12), borderRadius: BorderRadius.circular(14)),
-            child: Center(child: Text(n.icon, style: const TextStyle(fontSize: 22))),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(child: Text(n.title, style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight))),
-                    if (n.isUnread) Container(width: 8, height: 8, decoration: BoxDecoration(color: n.color, shape: BoxShape.circle)),
-                    const SizedBox(width: 4),
-                    Text(n.time, style: GoogleFonts.inter(fontSize: 11, color: isDark ? AppColors.textTertiaryDark : AppColors.textTertiaryLight)),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(n.body, style: GoogleFonts.inter(fontSize: 12, color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight, height: 1.4)),
-              ],
-            ),
-          ),
-        ],
-      ),
-    ).animate().fadeIn(delay: Duration(milliseconds: 100 + index * 50), duration: 400.ms).slideY(begin: 0.05);
-  }
 }
 
-class _Notification {
-  final String icon;
+class _NoticeItem {
+  final IconData icon;
   final String title;
   final String body;
   final String time;
   final Color color;
-  final bool isUnread;
-  _Notification({required this.icon, required this.title, required this.body, required this.time, required this.color, required this.isUnread});
+  final String category;
+  bool isUnread;
+
+  _NoticeItem({
+    required this.icon,
+    required this.title,
+    required this.body,
+    required this.time,
+    required this.color,
+    required this.category,
+    this.isUnread = false,
+  });
 }

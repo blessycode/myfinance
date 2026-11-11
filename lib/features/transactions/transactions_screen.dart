@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/data/mock_data.dart';
 import '../../core/models/models.dart';
+import '../../core/services/currency_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/formatters.dart';
-import '../../widgets/glass_card.dart';
+import '../../widgets/app_section_header.dart';
+import '../../widgets/empty_state.dart';
+import '../../widgets/transaction_tile.dart';
+import 'add_transaction_screen.dart';
 
 class TransactionsScreen extends StatefulWidget {
   const TransactionsScreen({super.key});
@@ -15,28 +18,40 @@ class TransactionsScreen extends StatefulWidget {
 }
 
 class _TransactionsScreenState extends State<TransactionsScreen> {
-  String _filter = 'All';
-  String _search = '';
-  final _searchCtrl = TextEditingController();
+  String _selectedFilter = 'All';
+  String _searchQuery = '';
+  final _searchController = TextEditingController();
 
-  final List<String> _filters = ['All', 'Expense', 'Income', 'Food', 'Transport', 'Shopping'];
+  final List<String> _filters = ['All', 'Expense', 'Income', 'USD', 'EUR', 'ZWG', 'ZAR', 'Food', 'Transport', 'Shopping'];
 
   List<Transaction> get _filteredTransactions {
-    var txs = MockData.transactions;
-    if (_search.isNotEmpty) {
-      txs = txs.where((t) => t.title.toLowerCase().contains(_search.toLowerCase()) || t.merchant.toLowerCase().contains(_search.toLowerCase())).toList();
+    var list = MockData.transactions;
+    if (_searchQuery.trim().isNotEmpty) {
+      final q = _searchQuery.toLowerCase();
+      list = list.where((t) => t.title.toLowerCase().contains(q) || t.merchant.toLowerCase().contains(q) || t.currency.toLowerCase().contains(q)).toList();
     }
-    switch (_filter) {
-      case 'Expense': return txs.where((t) => t.type == TransactionType.expense).toList();
-      case 'Income': return txs.where((t) => t.type == TransactionType.income).toList();
-      case 'Food': return txs.where((t) => t.categoryId == 'food').toList();
-      case 'Transport': return txs.where((t) => t.categoryId == 'transport').toList();
-      case 'Shopping': return txs.where((t) => t.categoryId == 'shopping').toList();
-      default: return txs;
+    switch (_selectedFilter) {
+      case 'Expense':
+        return list.where((t) => t.type == TransactionType.expense).toList();
+      case 'Income':
+        return list.where((t) => t.type == TransactionType.income).toList();
+      case 'USD':
+      case 'EUR':
+      case 'ZWG':
+      case 'ZAR':
+        return list.where((t) => t.currency == _selectedFilter).toList();
+      case 'Food':
+        return list.where((t) => t.categoryId == 'food').toList();
+      case 'Transport':
+        return list.where((t) => t.categoryId == 'transport').toList();
+      case 'Shopping':
+        return list.where((t) => t.categoryId == 'shopping').toList();
+      default:
+        return list;
     }
   }
 
-  Map<String, List<Transaction>> get _grouped {
+  Map<String, List<Transaction>> get _groupedTransactions {
     final map = <String, List<Transaction>>{};
     for (final t in _filteredTransactions) {
       final key = Formatters.relativeDate(t.date);
@@ -47,7 +62,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
 
   @override
   void dispose() {
-    _searchCtrl.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -60,84 +75,152 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // Header
+            // Top Section Header & Add action
             Padding(
-              padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+              padding: const EdgeInsets.fromLTRB(22, 16, 20, 0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Transactions', style: GoogleFonts.inter(fontSize: 28, fontWeight: FontWeight.w800, color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight, letterSpacing: -1)).animate().fadeIn(duration: 400.ms),
-
-                  const SizedBox(height: 16),
-
-                  // Search bar
-                  Container(
-                    decoration: BoxDecoration(
-                      color: isDark ? AppColors.cardDark : Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 2))],
-                    ),
-                    child: TextField(
-                      controller: _searchCtrl,
-                      onChanged: (v) => setState(() => _search = v),
-                      style: GoogleFonts.inter(fontSize: 14, color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight),
-                      decoration: InputDecoration(
-                        hintText: 'Search transactions...',
-                        hintStyle: GoogleFonts.inter(fontSize: 14, color: isDark ? AppColors.textTertiaryDark : AppColors.textTertiaryLight),
-                        prefixIcon: Icon(Icons.search_rounded, color: isDark ? AppColors.textTertiaryDark : AppColors.textTertiaryLight, size: 20),
-                        suffixIcon: _search.isNotEmpty
-                            ? IconButton(icon: const Icon(Icons.clear_rounded, size: 18), onPressed: () { _searchCtrl.clear(); setState(() => _search = ''); })
-                            : null,
-                        border: InputBorder.none,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  Row(
+                    children: [
+                      IconButton(
+                        visualDensity: VisualDensity.compact,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                        icon: const Icon(Icons.arrow_back_rounded),
+                        onPressed: () => Navigator.pop(context),
                       ),
-                    ),
-                  ).animate().fadeIn(delay: 100.ms),
-
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: AppSectionHeader(
+                          title: 'Transactions',
+                          subtitle: '${_filteredTransactions.length} records in your multi-currency ledger',
+                          actionLabel: '+ Add',
+                          onAction: () async {
+                            await Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => const AddTransactionScreen()),
+                            );
+                            setState(() {});
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: 14),
 
-                  // Filters
+                  // Search input
+                  Container(
+                    height: 46,
+                    decoration: BoxDecoration(
+                      color: isDark ? AppColors.cardDark : Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: isDark ? AppColors.borderDark : AppColors.borderLight,
+                      ),
+                    ),
+                    child: TextField(
+                      controller: _searchController,
+                      onChanged: (v) => setState(() => _searchQuery = v),
+                      style: GoogleFonts.inter(
+                        fontSize: 13.5,
+                        color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                      ),
+                      decoration: InputDecoration(
+                        hintText: 'Search merchant, title or currency...',
+                        prefixIcon: Icon(
+                          Icons.search_rounded,
+                          size: 19,
+                          color: isDark ? AppColors.textTertiaryDark : AppColors.textTertiaryLight,
+                        ),
+                        suffixIcon: _searchQuery.isNotEmpty
+                            ? IconButton(
+                                icon: const Icon(Icons.clear_rounded, size: 17),
+                                onPressed: () {
+                                  _searchController.clear();
+                                  setState(() => _searchQuery = '');
+                                },
+                              )
+                            : null,
+                        border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // Filter Chips Carousel
                   SizedBox(
-                    height: 36,
+                    height: 34,
                     child: ListView.separated(
                       scrollDirection: Axis.horizontal,
                       itemCount: _filters.length,
                       separatorBuilder: (_, __) => const SizedBox(width: 8),
                       itemBuilder: (context, index) {
-                        final f = _filters[index];
-                        final isSelected = _filter == f;
+                        final filter = _filters[index];
+                        final isSelected = _selectedFilter == filter;
                         return GestureDetector(
-                          onTap: () => setState(() => _filter = f),
+                          onTap: () => setState(() => _selectedFilter = filter),
                           child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 200),
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            duration: const Duration(milliseconds: 180),
+                            padding: const EdgeInsets.symmetric(horizontal: 14),
                             decoration: BoxDecoration(
-                              color: isSelected ? AppColors.primary : (isDark ? AppColors.cardDark : Colors.white),
+                              color: isSelected
+                                  ? AppColors.primary
+                                  : (isDark ? AppColors.cardDark : Colors.white),
                               borderRadius: BorderRadius.circular(10),
-                              boxShadow: isSelected ? [BoxShadow(color: AppColors.primary.withOpacity(0.3), blurRadius: 8)] : [],
+                              border: Border.all(
+                                color: isSelected
+                                    ? AppColors.primary
+                                    : (isDark ? AppColors.borderDark : AppColors.borderLight),
+                              ),
                             ),
                             child: Center(
-                              child: Text(f, style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w500, color: isSelected ? Colors.white : (isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight))),
+                              child: Text(
+                                filter,
+                                style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                                  color: isSelected
+                                      ? Colors.white
+                                      : (isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight),
+                                ),
+                              ),
                             ),
                           ),
                         );
                       },
                     ),
-                  ).animate().fadeIn(delay: 150.ms),
+                  ),
 
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 14),
                 ],
               ),
             ),
 
-            // List
+            // Transactions List
             Expanded(
               child: _filteredTransactions.isEmpty
-                  ? _buildEmptyState(isDark)
+                  ? EmptyState(
+                      icon: Icons.receipt_long_outlined,
+                      title: 'No Transactions Found',
+                      description: 'Try adjusting your search criteria or currency filters.',
+                      actionLabel: 'Reset Filters',
+                      onAction: () {
+                        _searchController.clear();
+                        setState(() {
+                          _searchQuery = '';
+                          _selectedFilter = 'All';
+                        });
+                      },
+                    )
                   : ListView(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      children: _grouped.entries.map((entry) {
-                        return _buildGroup(entry.key, entry.value, isDark);
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                      children: _groupedTransactions.entries.map((entry) {
+                        return _buildDateGroup(entry.key, entry.value, isDark);
                       }).toList(),
                     ),
             ),
@@ -147,114 +230,251 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     );
   }
 
-  Widget _buildGroup(String dateLabel, List<Transaction> transactions, bool isDark) {
-    final dayTotal = transactions.fold<double>(0, (sum, t) => t.type == TransactionType.income ? sum + t.amount : sum - t.amount);
+  Widget _buildDateGroup(String dateLabel, List<Transaction> transactions, bool isDark) {
+    // Convert to primary currency for accurate day total without naive addition of disparate currencies
+    final netDayTotal = transactions.fold<double>(
+      0,
+      (sum, t) {
+        final converted = CurrencyService.convert(t.amount, t.currency, MockData.primaryCurrency);
+        return t.type == TransactionType.income ? sum + converted : sum - converted;
+      },
+    );
+    final primarySym = CurrencyService.getSymbol(MockData.primaryCurrency);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.only(left: 4, bottom: 8, top: 10),
           child: Row(
             children: [
-              Text(dateLabel, style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700, color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight)),
+              Text(
+                dateLabel,
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                ),
+              ),
               const Spacer(),
               Text(
-                '${dayTotal >= 0 ? '+' : ''}\$${dayTotal.abs().toStringAsFixed(2)}',
-                style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: dayTotal >= 0 ? AppColors.income : AppColors.expense),
+                '${netDayTotal >= 0 ? '+' : ''}$primarySym${Formatters.amount(netDayTotal.abs())}',
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: netDayTotal >= 0 ? AppColors.income : (isDark ? const Color(0xFFF87171) : AppColors.expense),
+                ),
               ),
             ],
           ),
         ),
-
-        ...transactions.map((t) => _buildTransactionCard(t, isDark)),
-        const SizedBox(height: 16),
+        Container(
+          decoration: BoxDecoration(
+            color: isDark ? AppColors.cardDark : AppColors.cardLight,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: isDark ? AppColors.borderDark : AppColors.borderLight,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(isDark ? 0.25 : 0.025),
+                blurRadius: 10,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: ListView.separated(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            physics: const NeverScrollableScrollPhysics(),
+            shrinkWrap: true,
+            itemCount: transactions.length,
+            separatorBuilder: (_, __) => Divider(
+              height: 1,
+              indent: 68,
+              endIndent: 16,
+              color: isDark ? AppColors.borderDark : AppColors.borderLight,
+            ),
+            itemBuilder: (context, index) {
+              final tx = transactions[index];
+              final cat = MockData.categoryById(tx.categoryId);
+              return Dismissible(
+                key: Key(tx.id),
+                direction: DismissDirection.endToStart,
+                background: Container(
+                  alignment: Alignment.centerRight,
+                  padding: const EdgeInsets.only(right: 20),
+                  color: AppColors.expense.withOpacity(0.2),
+                  child: const Icon(Icons.delete_outline_rounded, color: AppColors.expense),
+                ),
+                confirmDismiss: (_) async {
+                  return await showDialog<bool>(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: const Text('Delete Transaction'),
+                          content: Text('Are you sure you want to delete ${tx.title}?'),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx, false),
+                              child: const Text('Cancel'),
+                            ),
+                            FilledButton(
+                              onPressed: () => Navigator.pop(ctx, true),
+                              style: FilledButton.styleFrom(backgroundColor: AppColors.expense),
+                              child: const Text('Delete'),
+                            ),
+                          ],
+                        ),
+                      ) ??
+                      false;
+                },
+                onDismissed: (_) {
+                  setState(() => MockData.transactions.removeWhere((item) => item.id == tx.id));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Deleted ${tx.title}'),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                },
+                child: TransactionTile(
+                  transaction: tx,
+                  category: cat,
+                  onTap: () => _showDetailSheet(tx, cat, isDark),
+                ),
+              );
+            },
+          ),
+        ),
       ],
     );
   }
 
-  Widget _buildTransactionCard(Transaction t, bool isDark) {
-    final cat = MockData.categoryById(t.categoryId);
-    final isIncome = t.type == TransactionType.income;
+  void _showDetailSheet(Transaction tx, Category cat, bool isDark) {
+    final sym = CurrencyService.getSymbol(tx.currency);
+    final converted = CurrencyService.convert(tx.amount, tx.currency, MockData.primaryCurrency);
+    final primarySym = CurrencyService.getSymbol(MockData.primaryCurrency);
 
-    return Dismissible(
-      key: Key(t.id),
-      direction: DismissDirection.endToStart,
-      background: Container(
-        alignment: Alignment.centerRight,
-        padding: const EdgeInsets.only(right: 20),
-        margin: const EdgeInsets.only(bottom: 10),
-        decoration: BoxDecoration(color: AppColors.expense.withOpacity(0.15), borderRadius: BorderRadius.circular(18)),
-        child: const Icon(Icons.delete_outline_rounded, color: AppColors.expense),
-      ),
-      child: GlassCard(
-        borderRadius: 18,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        margin: const EdgeInsets.only(bottom: 10),
-        child: Row(
-          children: [
-            Container(
-              width: 48, height: 48,
-              decoration: BoxDecoration(color: cat.color.withOpacity(0.12), borderRadius: BorderRadius.circular(15)),
-              child: Icon(cat.icon, color: cat.color, size: 22),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
                 children: [
-                  Text(t.title, style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight)),
-                  const SizedBox(height: 2),
-                  Row(children: [
-                    Text(t.merchant, style: GoogleFonts.inter(fontSize: 12, color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight)),
-                    const SizedBox(width: 8),
-                    Container(
-                      width: 4, height: 4,
-                      decoration: BoxDecoration(color: isDark ? AppColors.textTertiaryDark : AppColors.textTertiaryLight, shape: BoxShape.circle),
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: cat.color.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(14),
                     ),
-                    const SizedBox(width: 8),
-                    Text(Formatters.time(t.date), style: GoogleFonts.inter(fontSize: 12, color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight)),
-                  ]),
+                    child: Icon(cat.icon, color: cat.color, size: 24),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          tx.title,
+                          style: GoogleFonts.inter(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                          ),
+                        ),
+                        Text(
+                          tx.merchant,
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Text(
+                    '${tx.type == TransactionType.income ? '+' : '-'}$sym${Formatters.amount(tx.amount)}',
+                    style: GoogleFonts.inter(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: tx.type == TransactionType.income ? AppColors.income : AppColors.expense,
+                    ),
+                  ),
                 ],
               ),
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  '${isIncome ? '+' : '-'}\$${t.amount.toStringAsFixed(2)}',
-                  style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w700, color: isIncome ? AppColors.income : AppColors.expense),
+              const SizedBox(height: 20),
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: isDark ? AppColors.cardDark : AppColors.cardLightSecondary,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: isDark ? AppColors.borderDark : AppColors.borderLight),
                 ),
-                const SizedBox(height: 4),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(color: cat.color.withOpacity(0.12), borderRadius: BorderRadius.circular(6)),
-                  child: Text(cat.name.split(' ').first, style: GoogleFonts.inter(fontSize: 10, color: cat.color, fontWeight: FontWeight.w500)),
+                child: Column(
+                  children: [
+                    _buildRow('Category', cat.name, isDark),
+                    const Divider(height: 16),
+                    _buildRow('Original Currency', '${tx.currency} ($sym)', isDark),
+                    if (tx.currency != MockData.primaryCurrency) ...[
+                      const Divider(height: 16),
+                      _buildRow(
+                        'Converted to ${MockData.primaryCurrency}',
+                        '$primarySym${Formatters.amount(converted)}',
+                        isDark,
+                      ),
+                    ],
+                    const Divider(height: 16),
+                    _buildRow('Date', Formatters.dateTime(tx.date), isDark),
+                    const Divider(height: 16),
+                    _buildRow('Payment Method', tx.paymentMethod.name.toUpperCase(), isDark),
+                  ],
                 ),
-              ],
-            ),
-          ],
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  style: OutlinedButton.styleFrom(
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                  child: const Text('Close'),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildEmptyState(bool isDark) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 100, height: 100,
-            decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.1), shape: BoxShape.circle),
-            child: const Icon(Icons.receipt_long_rounded, size: 48, color: AppColors.primary),
+  Widget _buildRow(String label, String value, bool isDark) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: GoogleFonts.inter(
+            fontSize: 12.5,
+            color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
           ),
-          const SizedBox(height: 20),
-          Text('No transactions found', style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w700, color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight)),
-          const SizedBox(height: 8),
-          Text('Try adjusting your search or filters', style: GoogleFonts.inter(fontSize: 14, color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight)),
-        ],
-      ).animate().fadeIn(duration: 400.ms).scale(begin: const Offset(0.9, 0.9)),
+        ),
+        Text(
+          value,
+          style: GoogleFonts.inter(
+            fontSize: 12.5,
+            fontWeight: FontWeight.w600,
+            color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+          ),
+        ),
+      ],
     );
   }
 }
