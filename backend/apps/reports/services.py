@@ -125,7 +125,7 @@ class ReportExportService:
             spaceAfter=15
         )
 
-        elements.append(Paragraph("MyFinance Official Statement", title_style))
+        elements.append(Paragraph("JIREH Official Statement", title_style))
         period_str = f"Generated on {timezone.now().strftime('%Y-%m-%d %H:%M:%S UTC')} for {user.email}"
         elements.append(Paragraph(period_str, subtitle_style))
         elements.append(Spacer(1, 10))

@@ -1,4 +1,4 @@
-# MyFinance Commercial REST API Backend
+# JIREH Commercial REST API Backend
 
 Production-ready, highly secure personal finance management backend built with Django 5.2 LTS, Django REST Framework, PostgreSQL, SimpleJWT, Celery, and Redis. Features an atomic double-entry ledger engine, multi-currency conversion, real-time analytics, budgeting envelopes, savings goals, and mobile Flutter integrations.
 

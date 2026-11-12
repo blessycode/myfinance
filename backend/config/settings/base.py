@@ -17,8 +17,8 @@ env = environ.Env(
     REDIS_URL=(str, 'redis://localhost:6379/1'),
     CELERY_BROKER_URL=(str, 'redis://localhost:6379/0'),
     CELERY_RESULT_BACKEND=(str, 'redis://localhost:6379/0'),
-    APP_NAME=(str, 'MyFinance'),
-    APP_CODE=(str, 'MYFINANCE'),
+    APP_NAME=(str, 'JIREH'),
+    APP_CODE=(str, 'JIREH'),
     SUPPORT_EMAIL=(str, 'support@myfinance.app'),
 )
 

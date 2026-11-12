@@ -1,6 +1,6 @@
 # Flutter Integration Guide & API Contract
 
-This document provides the complete API contract, payload schemas, and client architecture for integrating the Flutter application with the MyFinance Django REST Framework backend.
+This document provides the complete API contract, payload schemas, and client architecture for integrating the JIREH Flutter application with its Django REST Framework backend.
 
 ---
 
