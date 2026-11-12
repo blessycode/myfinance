@@ -44,7 +44,9 @@ class LoginSerializer(serializers.Serializer):
 
         user = authenticate(username=email, password=password)
         if not user:
-            raise serializers.ValidationError('Invalid email address or password.')
+            raise serializers.ValidationError(
+                "We couldn't find an account with those details. Check your email and password, or create an account."
+            )
         if not user.is_active:
             raise serializers.ValidationError('This account has been deactivated.')
 

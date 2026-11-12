@@ -113,7 +113,8 @@ class ApiClient {
         if (value is String && value.isNotEmpty) return value;
       }
     }
-    if (statusCode == 401) return 'Email or password is incorrect.';
+    if (statusCode == 404) return 'The account or item could not be found. Please refresh and try again.';
+    if (statusCode == 401) return 'Your account could not be found or your session expired. Please sign in again.';
     return 'Request failed ($statusCode). Please try again.';
   }
 
