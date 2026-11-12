@@ -55,12 +55,22 @@ class DebtPaymentView(views.APIView):
             return Response({'detail': 'Unauthorized access to account.'}, status=status.HTTP_403_FORBIDDEN)
 
         amount = round_money(data['amount'])
+        if amount <= Decimal('0.00'):
+            return Response({'detail': 'Payment amount must be greater than zero.'}, status=status.HTTP_400_BAD_REQUEST)
+        if amount > debt.current_balance:
+            return Response({'detail': 'Payment cannot be greater than the remaining debt balance.'}, status=status.HTTP_400_BAD_REQUEST)
+        if account.currency != debt.currency:
+            return Response({'detail': f'Choose an account using {debt.currency} to record this payment.'}, status=status.HTTP_400_BAD_REQUEST)
 
         # Post transaction in ledger
         trx = TransactionLedgerService.post_transaction(
             user=request.user,
             account=account,
-            transaction_type=TransactionType.DEBT_REPAYMENT,
+            transaction_type=(
+                TransactionType.INCOME
+                if debt.debt_type == 'lent'
+                else TransactionType.DEBT_REPAYMENT
+            ),
             amount=amount,
             currency=debt.currency,
             description=f"Repayment towards {debt.name} ({debt.counterparty})",

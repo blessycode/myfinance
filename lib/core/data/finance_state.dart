@@ -42,5 +42,33 @@ class FinanceState {
   static double get spendingScore => _number(dashboard['savings_rate']) * 100;
   static double get aiHealthScore => 0;
 
+  /// A simple 0–100 indicator based on the financial data the user has added.
+  /// Unavailable categories are omitted instead of being treated as zero.
+  static double? get financialHealthScore {
+    final components = <double>[];
+
+    if (monthlyIncomeCurrent > 0) {
+      // A 20% or higher savings rate earns the full cash-flow component.
+      components.add((spendingScore / 20 * 100).clamp(0, 100).toDouble());
+    }
+    final validBudgets = budgets.where((budget) => budget.limit > 0).toList();
+    if (validBudgets.isNotEmpty) {
+      final budgetScore = validBudgets
+          .map((budget) => (1 - budget.percentage).clamp(0, 1) * 100)
+          .reduce((total, score) => total + score) / validBudgets.length;
+      components.add(budgetScore);
+    }
+    final validGoals = goals.where((goal) => goal.target > 0).toList();
+    if (validGoals.isNotEmpty) {
+      final goalsScore = validGoals
+          .map((goal) => goal.percentage.clamp(0, 1) * 100)
+          .reduce((total, score) => total + score) / validGoals.length;
+      components.add(goalsScore);
+    }
+
+    if (components.isEmpty) return null;
+    return components.reduce((total, score) => total + score) / components.length;
+  }
+
   static double _number(dynamic value) => double.tryParse(value?.toString() ?? '') ?? 0;
 }

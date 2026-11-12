@@ -130,6 +130,7 @@ class Bill {
   final String name;
   final String merchant;
   final double amount;
+  final String currency;
   final DateTime dueDate;
   final IconData icon;
   final Color color;
@@ -139,6 +140,7 @@ class Bill {
     required this.name,
     required this.merchant,
     required this.amount,
+    this.currency = 'USD',
     required this.dueDate,
     required this.icon,
     required this.color,

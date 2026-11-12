@@ -117,6 +117,9 @@ class FinanceApi {
   Future<Map<String, dynamic>> createDebt(Map<String, dynamic> data) async =>
       _api.post('debts/', body: data, authenticated: true);
 
+  Future<Map<String, dynamic>> payDebt(String id, Map<String, dynamic> data) async =>
+      _api.post('debts/$id/payments/', body: data, authenticated: true);
+
   Future<Map<String, dynamic>> updateProfile(Map<String, dynamic> data) async =>
       _api.patch('profile/', body: data);
 
@@ -299,6 +302,7 @@ class FinanceApi {
         name: (row['name'] ?? '').toString(),
         merchant: (row['merchant'] ?? '').toString(),
         amount: _number(row['amount']),
+        currency: (row['currency'] ?? 'USD').toString(),
         dueDate: DateTime.tryParse((row['next_due_date'] ?? '').toString()) ?? DateTime.now(),
         icon: _icon(row['icon']),
         color: _color(row['color']),

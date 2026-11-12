@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
-import '../../core/data/finance_state.dart';
-import '../../core/services/currency_service.dart';
+import '../../core/data/mock_data.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/formatters.dart';
 import '../../widgets/app_section_header.dart';
@@ -103,7 +102,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: Text(
-                              '${(FinanceState.spendingScore).toStringAsFixed(1)}% Savings Rate',
+                              '+75.8% Savings Rate',
                               style: GoogleFonts.inter(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w700,
@@ -119,7 +118,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                           Expanded(
                             child: _buildFlowItem(
                               label: 'Total Inflow',
-                              amount: FinanceState.monthlyIncomeCurrent,
+                              amount: MockData.monthlyIncomeCurrent,
                               color: AppColors.income,
                               icon: Icons.arrow_downward_rounded,
                               isDark: isDark,
@@ -135,7 +134,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                           Expanded(
                             child: _buildFlowItem(
                               label: 'Total Outflow',
-                              amount: FinanceState.monthlyExpenseCurrent,
+                              amount: MockData.monthlyExpenseCurrent,
                               color: isDark
                                   ? const Color(0xFFF87171)
                                   : AppColors.expense,
@@ -153,7 +152,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                           Expanded(
                             child: _buildFlowItem(
                               label: 'Net Preserved',
-                              amount: FinanceState.savingsThisMonth,
+                              amount: MockData.savingsThisMonth,
                               color: isDark
                                   ? AppColors.accentLight
                                   : AppColors.primary,
@@ -249,7 +248,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                                   ),
                                 ),
                                 Text(
-                                  '${CurrencyService.getSymbol(FinanceState.primaryCurrency)}${Formatters.amount(FinanceState.monthlyExpenseCurrent)}',
+                                  '\$${Formatters.amount(MockData.monthlyExpenseCurrent)}',
                                   style: GoogleFonts.inter(
                                     fontSize: 16,
                                     fontWeight: FontWeight.w700,
@@ -311,7 +310,9 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                               style: GoogleFonts.inter(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w700,
-                                color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                                color: isDark
+                                    ? AppColors.textPrimaryDark
+                                    : AppColors.textPrimaryLight,
                               ),
                             ),
                           ),
@@ -381,11 +382,11 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                                   getTitlesWidget: (val, meta) {
                                     final index = val.toInt();
                                     if (index >= 0 &&
-                                        index < FinanceState.monthLabels.length) {
+                                        index < MockData.monthLabels.length) {
                                       return Padding(
                                         padding: const EdgeInsets.only(top: 8),
                                         child: Text(
-                                          FinanceState.monthLabels[index],
+                                          MockData.monthLabels[index],
                                           style: GoogleFonts.inter(
                                             fontSize: 11,
                                             fontWeight: FontWeight.w500,
@@ -414,19 +415,19 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                             ),
                             borderData: FlBorderData(show: false),
                             barGroups: List.generate(
-                              FinanceState.monthLabels.length,
+                              MockData.monthLabels.length,
                               (i) {
                                 return BarChartGroupData(
                                   x: i,
                                   barRods: [
                                     BarChartRodData(
-                                      toY: FinanceState.monthlyIncome[i],
+                                      toY: MockData.monthlyIncome[i],
                                       color: AppColors.income,
                                       width: 8,
                                       borderRadius: BorderRadius.circular(4),
                                     ),
                                     BarChartRodData(
-                                      toY: FinanceState.monthlyExpenses[i],
+                                      toY: MockData.monthlyExpenses[i],
                                       color: isDark
                                           ? const Color(0xFFF87171)
                                           : AppColors.expense,
@@ -519,13 +520,13 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   }
 
   List<PieChartSectionData> _buildPieSections() {
-    final entries = FinanceState.categorySpending.entries.take(5).toList();
+    final entries = MockData.categorySpending.entries.take(5).toList();
     final total = entries.fold<double>(0, (s, e) => s + e.value);
 
     return List.generate(entries.length, (i) {
       final isTouched = i == _touchedPieIndex;
       final e = entries[i];
-      final cat = FinanceState.categoryById(e.key);
+      final cat = MockData.categoryById(e.key);
       final radius = isTouched ? 32.0 : 26.0;
 
       return PieChartSectionData(
@@ -543,11 +544,11 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   }
 
   List<Widget> _buildCategoryLegendList(bool isDark) {
-    final entries = FinanceState.categorySpending.entries.take(5).toList();
+    final entries = MockData.categorySpending.entries.take(5).toList();
     final total = entries.fold<double>(0, (s, e) => s + e.value);
 
     return entries.map((e) {
-      final cat = FinanceState.categoryById(e.key);
+      final cat = MockData.categoryById(e.key);
       final pct = (e.value / total) * 100;
 
       return Padding(

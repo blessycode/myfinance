@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../core/data/finance_state.dart';
+import '../../core/data/mock_data.dart';
 import '../../core/models/models.dart';
 import '../../core/services/currency_service.dart';
-import '../../core/services/finance_api.dart';
 import '../../core/theme/app_colors.dart';
 
 class AddTransactionScreen extends StatefulWidget {
@@ -22,31 +21,23 @@ class AddTransactionScreen extends StatefulWidget {
 class _AddTransactionScreenState extends State<AddTransactionScreen> {
   late TransactionType _type;
   String _amount = '0';
-  String _selectedCategoryId = '';
-  String _selectedAccountId = '';
-  String _selectedCurrency = FinanceState.primaryCurrency;
+  String _selectedCategoryId = 'food';
+  String _selectedCurrency = MockData.primaryCurrency;
   final _merchantController = TextEditingController();
   final _notesController = TextEditingController();
   PaymentMethod _paymentMethod = PaymentMethod.creditCard;
   DateTime _selectedDate = DateTime.now();
   bool _isLoading = false;
 
-  List<String> get _currencies {
-    for (final account in FinanceState.accounts) {
-      if (account.id == _selectedAccountId) return [account.currency];
-    }
-    return CurrencyService.rates.keys.toList();
-  }
+  final _currencies = ['USD', 'EUR', 'GBP', 'ZAR', 'ZWG', 'BWP'];
 
   @override
   void initState() {
     super.initState();
     _type = widget.initialType;
-    _selectedAccountId = FinanceState.accounts.isEmpty ? '' : FinanceState.accounts.first.id;
-    if (FinanceState.accounts.isNotEmpty) {
-      _selectedCurrency = FinanceState.accounts.first.currency;
+    if (_type == TransactionType.income) {
+      _selectedCategoryId = 'income';
     }
-    _selectedCategoryId = _defaultCategoryId(_type);
   }
 
   @override
@@ -97,69 +88,46 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       return;
     }
 
-    if (FinanceState.accounts.isEmpty || _selectedAccountId.isEmpty || _selectedCategoryId.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Choose an account and category before recording a transaction.')),
-      );
-      return;
-    }
     setState(() => _isLoading = true);
-    try {
-      final description = _merchantController.text.trim().isNotEmpty
+    await Future.delayed(const Duration(milliseconds: 400));
+
+    final sym = CurrencyService.getSymbol(_selectedCurrency);
+    final newTx = Transaction(
+      id: 'tx_${DateTime.now().millisecondsSinceEpoch}',
+      title: _merchantController.text.trim().isNotEmpty
           ? _merchantController.text.trim()
-          : (_type == TransactionType.income ? 'Income' : 'Expense');
-      await FinanceApi.instance.createTransaction({
-        'account': _selectedAccountId,
-        'transaction_type': _type == TransactionType.income ? 'income' : 'expense',
-        'category': _selectedCategoryId,
-        'amount': parsedAmount.toStringAsFixed(2),
-        'currency': _selectedCurrency,
-        'description': description,
-        'merchant': _merchantController.text.trim(),
-        'transaction_date': _selectedDate.toIso8601String().split('T').first,
-        'payment_method': _paymentMethod.name.replaceAllMapped(
-          RegExp(r'[A-Z]'),
-          (match) => '_${match[0]!.toLowerCase()}',
-        ),
-        'notes': _notesController.text.trim(),
-        'idempotency_key': '${DateTime.now().microsecondsSinceEpoch}',
-      });
-      await FinanceApi.instance.refresh();
-      if (!mounted) return;
-      HapticFeedback.mediumImpact();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Recorded ${CurrencyService.format(parsedAmount, _selectedCurrency)} transaction'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-      Navigator.pop(context, true);
-    } catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error.toString()), behavior: SnackBarBehavior.floating),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
+          : (_type == TransactionType.income
+                ? 'Income Deposit'
+                : 'Expense Payment'),
+      merchant: _merchantController.text.trim().isNotEmpty
+          ? _merchantController.text.trim()
+          : 'General',
+      amount: parsedAmount,
+      currency: _selectedCurrency,
+      type: _type,
+      categoryId: _selectedCategoryId,
+      date: _selectedDate,
+      paymentMethod: _paymentMethod,
+      notes: _notesController.text.trim().isNotEmpty
+          ? _notesController.text.trim()
+          : null,
+    );
 
-  bool _isIncomeCategory(Category category) =>
-      (category.name.toLowerCase().contains('income') ||
-          category.name.toLowerCase() == 'salary' ||
-          category.name.toLowerCase() == 'business' ||
-          category.name.toLowerCase() == 'freelance' ||
-          category.name.toLowerCase() == 'investments' ||
-          category.name.toLowerCase() == 'interest' ||
-          category.name.toLowerCase() == 'gifts');
+    MockData.transactions.insert(0, newTx);
 
-  String _defaultCategoryId(TransactionType type) {
-    final isIncome = type == TransactionType.income;
-    for (final category in FinanceState.categories) {
-      if (_isIncomeCategory(category) == isIncome) return category.id;
-    }
-    return '';
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+    HapticFeedback.mediumImpact();
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Recorded $sym${parsedAmount.toStringAsFixed(2)} ($_selectedCurrency) transaction',
+        ),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+    Navigator.pop(context);
   }
 
   @override
@@ -169,7 +137,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     final currSymbol = CurrencyService.getSymbol(_selectedCurrency);
 
     return Scaffold(
-      backgroundColor: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
+      backgroundColor: isDark
+          ? AppColors.backgroundDark
+          : AppColors.backgroundLight,
       body: SafeArea(
         child: Column(
           children: [
@@ -188,7 +158,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                     style: GoogleFonts.inter(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
-                      color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                      color: isDark
+                          ? AppColors.textPrimaryDark
+                          : AppColors.textPrimaryLight,
                     ),
                   ),
                   const Spacer(),
@@ -207,7 +179,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                   color: isDark ? AppColors.cardDark : const Color(0xFFEFF3EE),
                   borderRadius: BorderRadius.circular(13),
                   border: Border.all(
-                    color: isDark ? AppColors.borderDark : AppColors.borderLight,
+                    color: isDark
+                        ? AppColors.borderDark
+                        : AppColors.borderLight,
                   ),
                 ),
                 child: Row(
@@ -218,20 +192,25 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                           HapticFeedback.selectionClick();
                           setState(() {
                             _type = TransactionType.expense;
-                            _selectedCategoryId = _defaultCategoryId(TransactionType.expense);
+                            if (_selectedCategoryId == 'income')
+                              _selectedCategoryId = 'food';
                           });
                         },
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 200),
                           decoration: BoxDecoration(
                             color: isExpense
-                                ? (isDark ? AppColors.surfaceDark : Colors.white)
+                                ? (isDark
+                                      ? AppColors.surfaceDark
+                                      : Colors.white)
                                 : Colors.transparent,
                             borderRadius: BorderRadius.circular(10),
                             boxShadow: isExpense
                                 ? [
                                     BoxShadow(
-                                      color: Colors.black.withOpacity(isDark ? 0.2 : 0.05),
+                                      color: Colors.black.withOpacity(
+                                        isDark ? 0.2 : 0.05,
+                                      ),
                                       blurRadius: 6,
                                       offset: const Offset(0, 2),
                                     ),
@@ -245,15 +224,27 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                 Icon(
                                   Icons.north_east_rounded,
                                   size: 15,
-                                  color: isExpense ? AppColors.expense : (isDark ? AppColors.textTertiaryDark : AppColors.textSecondaryLight),
+                                  color: isExpense
+                                      ? AppColors.expense
+                                      : (isDark
+                                            ? AppColors.textTertiaryDark
+                                            : AppColors.textSecondaryLight),
                                 ),
                                 const SizedBox(width: 5),
                                 Text(
                                   'Expense',
                                   style: GoogleFonts.inter(
                                     fontSize: 13,
-                                    fontWeight: isExpense ? FontWeight.w700 : FontWeight.w500,
-                                    color: isExpense ? (isDark ? const Color(0xFFF87171) : AppColors.expense) : (isDark ? AppColors.textTertiaryDark : AppColors.textSecondaryLight),
+                                    fontWeight: isExpense
+                                        ? FontWeight.w700
+                                        : FontWeight.w500,
+                                    color: isExpense
+                                        ? (isDark
+                                              ? const Color(0xFFF87171)
+                                              : AppColors.expense)
+                                        : (isDark
+                                              ? AppColors.textTertiaryDark
+                                              : AppColors.textSecondaryLight),
                                   ),
                                 ),
                               ],
@@ -268,20 +259,24 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                           HapticFeedback.selectionClick();
                           setState(() {
                             _type = TransactionType.income;
-                            _selectedCategoryId = _defaultCategoryId(TransactionType.income);
+                            _selectedCategoryId = 'income';
                           });
                         },
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 200),
                           decoration: BoxDecoration(
                             color: !isExpense
-                                ? (isDark ? AppColors.surfaceDark : Colors.white)
+                                ? (isDark
+                                      ? AppColors.surfaceDark
+                                      : Colors.white)
                                 : Colors.transparent,
                             borderRadius: BorderRadius.circular(10),
                             boxShadow: !isExpense
                                 ? [
                                     BoxShadow(
-                                      color: Colors.black.withOpacity(isDark ? 0.2 : 0.05),
+                                      color: Colors.black.withOpacity(
+                                        isDark ? 0.2 : 0.05,
+                                      ),
                                       blurRadius: 6,
                                       offset: const Offset(0, 2),
                                     ),
@@ -295,15 +290,25 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                 Icon(
                                   Icons.south_west_rounded,
                                   size: 15,
-                                  color: !isExpense ? AppColors.income : (isDark ? AppColors.textTertiaryDark : AppColors.textSecondaryLight),
+                                  color: !isExpense
+                                      ? AppColors.income
+                                      : (isDark
+                                            ? AppColors.textTertiaryDark
+                                            : AppColors.textSecondaryLight),
                                 ),
                                 const SizedBox(width: 5),
                                 Text(
                                   'Income',
                                   style: GoogleFonts.inter(
                                     fontSize: 13,
-                                    fontWeight: !isExpense ? FontWeight.w700 : FontWeight.w500,
-                                    color: !isExpense ? AppColors.income : (isDark ? AppColors.textTertiaryDark : AppColors.textSecondaryLight),
+                                    fontWeight: !isExpense
+                                        ? FontWeight.w700
+                                        : FontWeight.w500,
+                                    color: !isExpense
+                                        ? AppColors.income
+                                        : (isDark
+                                              ? AppColors.textTertiaryDark
+                                              : AppColors.textSecondaryLight),
                                   ),
                                 ),
                               ],
@@ -336,13 +341,23 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                       onSelected: (val) {
                         if (val) setState(() => _selectedCurrency = c);
                       },
-                      selectedColor: isDark ? AppColors.primary : AppColors.primary,
+                      selectedColor: isDark
+                          ? AppColors.primary
+                          : AppColors.primary,
                       labelStyle: GoogleFonts.inter(
                         fontSize: 11,
-                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                        color: isSelected ? Colors.white : (isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight),
+                        fontWeight: isSelected
+                            ? FontWeight.w700
+                            : FontWeight.w500,
+                        color: isSelected
+                            ? Colors.white
+                            : (isDark
+                                  ? AppColors.textSecondaryDark
+                                  : AppColors.textSecondaryLight),
                       ),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                       visualDensity: VisualDensity.compact,
                     );
                   },
@@ -362,7 +377,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                         fontSize: 10.5,
                         fontWeight: FontWeight.w600,
                         letterSpacing: 1.0,
-                        color: isDark ? AppColors.textTertiaryDark : AppColors.textSecondaryLight,
+                        color: isDark
+                            ? AppColors.textTertiaryDark
+                            : AppColors.textSecondaryLight,
                       ),
                     ),
                     const SizedBox(height: 2),
@@ -375,7 +392,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                           fontWeight: FontWeight.w700,
                           letterSpacing: -1.0,
                           color: isExpense
-                              ? (isDark ? const Color(0xFFF87171) : AppColors.expense)
+                              ? (isDark
+                                    ? const Color(0xFFF87171)
+                                    : AppColors.expense)
                               : AppColors.income,
                         ),
                       ),
@@ -389,61 +408,22 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             Expanded(
               child: SingleChildScrollView(
                 physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 22,
+                  vertical: 6,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      isExpense ? 'Pay from account' : 'Deposit into account',
-                      style: GoogleFonts.inter(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w600,
-                        color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    DropdownButtonFormField<String>(
-                      value: FinanceState.accounts.any((account) => account.id == _selectedAccountId)
-                          ? _selectedAccountId
-                          : null,
-                      isExpanded: true,
-                      hint: Text(FinanceState.accounts.isEmpty ? 'Add an account first' : 'Choose an account'),
-                      decoration: InputDecoration(
-                        prefixIcon: const Icon(Icons.account_balance_wallet_outlined, size: 19),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(13)),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                      ),
-                      items: FinanceState.accounts.map((account) {
-                        return DropdownMenuItem<String>(
-                          value: account.id,
-                          child: Text(
-                            '${account.name} (${account.currency})',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        );
-                      }).toList(),
-                      onChanged: (accountId) {
-                        if (accountId == null) return;
-                        final account = FinanceState.accounts.firstWhere((item) => item.id == accountId);
-                        setState(() {
-                          _selectedAccountId = accountId;
-                          if (CurrencyService.rates.containsKey(account.currency)) {
-                            _selectedCurrency = account.currency;
-                          }
-                        });
-                      },
-                    ),
-
-                    const SizedBox(height: 14),
-
                     // Category Selection Label
                     Text(
                       'Category',
                       style: GoogleFonts.inter(
                         fontSize: 12.5,
                         fontWeight: FontWeight.w600,
-                        color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                        color: isDark
+                            ? AppColors.textPrimaryDark
+                            : AppColors.textPrimaryLight,
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -452,10 +432,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                       height: 42,
                       child: ListView.separated(
                         scrollDirection: Axis.horizontal,
-                        itemCount: FinanceState.categories.length,
+                        itemCount: MockData.categories.length,
                         separatorBuilder: (_, __) => const SizedBox(width: 8),
                         itemBuilder: (context, index) {
-                          final cat = FinanceState.categories[index];
+                          final cat = MockData.categories[index];
                           final isSelected = _selectedCategoryId == cat.id;
                           return GestureDetector(
                             onTap: () {
@@ -464,16 +444,22 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                             },
                             child: AnimatedContainer(
                               duration: const Duration(milliseconds: 180),
-                              padding: const EdgeInsets.symmetric(horizontal: 12),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                              ),
                               decoration: BoxDecoration(
                                 color: isSelected
                                     ? AppColors.primary
-                                    : (isDark ? AppColors.cardDark : Colors.white),
+                                    : (isDark
+                                          ? AppColors.cardDark
+                                          : Colors.white),
                                 borderRadius: BorderRadius.circular(12),
                                 border: Border.all(
                                   color: isSelected
                                       ? AppColors.primary
-                                      : (isDark ? AppColors.borderDark : AppColors.borderLight),
+                                      : (isDark
+                                            ? AppColors.borderDark
+                                            : AppColors.borderLight),
                                 ),
                               ),
                               child: Row(
@@ -481,17 +467,23 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                   Icon(
                                     cat.icon,
                                     size: 16,
-                                    color: isSelected ? Colors.white : cat.color,
+                                    color: isSelected
+                                        ? Colors.white
+                                        : cat.color,
                                   ),
                                   const SizedBox(width: 6),
                                   Text(
                                     cat.name,
                                     style: GoogleFonts.inter(
                                       fontSize: 12,
-                                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                                      fontWeight: isSelected
+                                          ? FontWeight.w600
+                                          : FontWeight.w500,
                                       color: isSelected
                                           ? Colors.white
-                                          : (isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight),
+                                          : (isDark
+                                                ? AppColors.textPrimaryDark
+                                                : AppColors.textPrimaryLight),
                                     ),
                                   ),
                                 ],
@@ -510,7 +502,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                       style: GoogleFonts.inter(
                         fontSize: 12.5,
                         fontWeight: FontWeight.w600,
-                        color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                        color: isDark
+                            ? AppColors.textPrimaryDark
+                            : AppColors.textPrimaryLight,
                       ),
                     ),
                     const SizedBox(height: 6),
@@ -519,9 +513,17 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                       style: GoogleFonts.inter(fontSize: 13.5),
                       decoration: InputDecoration(
                         hintText: 'e.g. Whole Foods, Starbucks, Client Invoice',
-                        prefixIcon: const Icon(Icons.storefront_outlined, size: 19),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(13)),
+                        prefixIcon: const Icon(
+                          Icons.storefront_outlined,
+                          size: 19,
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 12,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(13),
+                        ),
                       ),
                     ),
 
@@ -533,7 +535,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                       style: GoogleFonts.inter(
                         fontSize: 12.5,
                         fontWeight: FontWeight.w600,
-                        color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                        color: isDark
+                            ? AppColors.textPrimaryDark
+                            : AppColors.textPrimaryLight,
                       ),
                     ),
                     const SizedBox(height: 6),
@@ -550,12 +554,22 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                           },
                           labelStyle: GoogleFonts.inter(
                             fontSize: 10.5,
-                            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                            color: isSelected ? Colors.white : (isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight),
+                            fontWeight: isSelected
+                                ? FontWeight.w700
+                                : FontWeight.w500,
+                            color: isSelected
+                                ? Colors.white
+                                : (isDark
+                                      ? AppColors.textSecondaryDark
+                                      : AppColors.textSecondaryLight),
                           ),
                           selectedColor: AppColors.primary,
-                          backgroundColor: isDark ? AppColors.cardDark : Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          backgroundColor: isDark
+                              ? AppColors.cardDark
+                              : Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
                         );
                       }).toList(),
                     ),
@@ -571,7 +585,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                 color: isDark ? AppColors.surfaceDark : Colors.white,
                 border: Border(
                   top: BorderSide(
-                    color: isDark ? AppColors.borderDark : AppColors.borderLight,
+                    color: isDark
+                        ? AppColors.borderDark
+                        : AppColors.borderLight,
                   ),
                 ),
               ),
@@ -591,17 +607,25 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                         backgroundColor: isExpense
                             ? AppColors.primary
                             : AppColors.income,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
                       ),
                       child: _isLoading
                           ? const SizedBox(
                               width: 20,
                               height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
                             )
                           : Text(
                               'Save Transaction ($_selectedCurrency)',
-                              style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600),
+                              style: GoogleFonts.inter(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                     ),
                   ),
@@ -641,7 +665,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                     style: GoogleFonts.inter(
                       fontSize: key == '⌫' ? 18 : 20,
                       fontWeight: FontWeight.w600,
-                      color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                      color: isDark
+                          ? AppColors.textPrimaryDark
+                          : AppColors.textPrimaryLight,
                     ),
                   ),
                 ),

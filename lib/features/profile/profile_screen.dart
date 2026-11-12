@@ -66,16 +66,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _setBiometricUnlock(bool enabled) async {
     final security = DeviceSecurityService.instance;
     if (enabled) {
-      if (!await security.hasEnrolledBiometrics) {
+      if (!await security.supportsDeviceUnlock) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Set up Face ID or a fingerprint on your phone first.'),
+            content: Text('Set up a screen lock on your phone first.'),
           ));
         }
         return;
       }
       final verified = await security.authenticate(
-        reason: 'Confirm your identity to turn on JIREH biometric unlock',
+        reason: 'Confirm your identity to turn on JIREH device unlock',
       );
       if (!verified) return;
     }
@@ -598,6 +598,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final phone = FinanceState.profile['phone_number']?.toString() ?? '';
     final country = FinanceState.profile['country']?.toString() ?? '';
     final totalPortfolio = double.tryParse(FinanceState.dashboard['total_balance']?.toString() ?? '') ?? 0;
+    final healthScore = FinanceState.financialHealthScore;
 
     return Scaffold(
       backgroundColor: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
@@ -724,7 +725,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       Container(width: 1, height: 28, color: isDark ? AppColors.borderDark : const Color(0xFFD6DED3)),
                       _buildStatColumn('Accounts', '${FinanceState.accounts.length} Linked', isDark),
                       Container(width: 1, height: 28, color: isDark ? AppColors.borderDark : const Color(0xFFD6DED3)),
-                      _buildStatColumn('Health Score', '85 / 100', isDark),
+                      _buildStatColumn(
+                        'Health Score',
+                        healthScore == null
+                            ? 'Add data'
+                            : '${healthScore.round()} / 100',
+                        isDark,
+                      ),
                     ],
                   ),
                 ),
@@ -775,8 +782,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   children: [
                     SettingsTile(
                       icon: Icons.fingerprint_rounded,
-                      title: 'Biometric Unlock',
-                      subtitle: 'Require Face ID / Fingerprint on launch',
+                      title: 'Device Unlock',
+                      subtitle: 'Require biometrics or your phone passcode on launch',
                       trailing: Switch.adaptive(
                         value: _biometricsEnabled,
                         activeColor: AppColors.primary,
