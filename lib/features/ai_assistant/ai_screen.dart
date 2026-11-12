@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../core/services/finance_api.dart';
 import '../../core/theme/app_colors.dart';
 
 class AiAssistantScreen extends StatefulWidget {
@@ -12,23 +13,7 @@ class AiAssistantScreen extends StatefulWidget {
 class _AiAssistantScreenState extends State<AiAssistantScreen> {
   final _inputController = TextEditingController();
   final _scrollController = ScrollController();
-  final List<_ChatMessage> _messages = [
-    _ChatMessage(
-      isAI: true,
-      text: 'Hello Alex! I am your personal financial intelligence advisor. How can I assist you with your spending, budgets, or savings goals today?',
-      time: DateTime.now().subtract(const Duration(minutes: 6)),
-    ),
-    _ChatMessage(
-      isAI: false,
-      text: 'How much have I spent on food and dining this month?',
-      time: DateTime.now().subtract(const Duration(minutes: 4)),
-    ),
-    _ChatMessage(
-      isAI: true,
-      text: 'You have spent \$458.50 on Food & Dining so far this month, which represents 76% of your \$600.00 monthly envelope limit.\n\nYou have \$141.50 remaining for the rest of the cycle. You are on track to stay within your target.',
-      time: DateTime.now().subtract(const Duration(minutes: 3)),
-    ),
-  ];
+  final List<_ChatMessage> _messages = [];
 
   bool _isTyping = false;
 
@@ -36,10 +21,10 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
     'How is my savings rate?',
     'Review my subscriptions',
     'Where can I cut expenses?',
-    'Forecast month-end balance',
+    'Show my recent cash flow',
   ];
 
-  void _sendMessage(String text) {
+  Future<void> _sendMessage(String text) async {
     if (text.trim().isEmpty) return;
     setState(() {
       _messages.add(_ChatMessage(isAI: false, text: text, time: DateTime.now()));
@@ -47,14 +32,15 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
     });
     _inputController.clear();
 
-    Future.delayed(const Duration(milliseconds: 1000), () {
+    try {
+      final answer = await FinanceApi.instance.answerQuestion(text);
       if (!mounted) return;
       setState(() {
         _isTyping = false;
         _messages.add(
           _ChatMessage(
             isAI: true,
-            text: 'Based on your actual cash flow, your current net savings rate is 75.8% (\$4,549.25 preserved out of \$6,000.00 income). We recommend keeping everyday grocery expenses consistent and allocating \$100 toward your Europe Vacation goal.',
+            text: answer,
             time: DateTime.now(),
           ),
         );
@@ -68,7 +54,13 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
           );
         }
       });
-    });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _isTyping = false;
+        _messages.add(_ChatMessage(isAI: true, text: error.toString(), time: DateTime.now()));
+      });
+    }
   }
 
   @override
@@ -123,7 +115,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Financial Assistant',
+                        'Financial Insights',
                         style: GoogleFonts.inter(
                           fontSize: 15,
                           fontWeight: FontWeight.w700,
@@ -253,7 +245,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
                         ),
                         onSubmitted: _sendMessage,
                         decoration: InputDecoration(
-                          hintText: 'Ask about spending, budgets or habits...',
+                          hintText: 'Ask about your recorded financial activity...',
                           hintStyle: GoogleFonts.inter(
                             fontSize: 13,
                             color: isDark ? AppColors.textTertiaryDark : AppColors.textSecondaryLight,

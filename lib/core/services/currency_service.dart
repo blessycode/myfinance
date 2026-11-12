@@ -4,7 +4,7 @@ class CurrencyRate {
   final String code;
   final String symbol;
   final String name;
-  final double rateToUSD; // 1 unit of this currency = X USD
+  final double rateToUSD;
   final String flag;
 
   const CurrencyRate({
@@ -12,52 +12,61 @@ class CurrencyRate {
     required this.symbol,
     required this.name,
     required this.rateToUSD,
-    required this.flag,
+    this.flag = '',
   });
 }
 
 class CurrencyService {
-  static const Map<String, CurrencyRate> rates = {
-    'USD': CurrencyRate(code: 'USD', symbol: '\$', name: 'US Dollar', rateToUSD: 1.0, flag: '🇺🇸'),
-    'EUR': CurrencyRate(code: 'EUR', symbol: '€', name: 'Euro', rateToUSD: 1.09, flag: '🇪🇺'),
-    'GBP': CurrencyRate(code: 'GBP', symbol: '£', name: 'British Pound', rateToUSD: 1.28, flag: '🇬🇧'),
-    'ZAR': CurrencyRate(code: 'ZAR', symbol: 'R', name: 'South African Rand', rateToUSD: 0.055, flag: '🇿🇦'),
-    'ZWG': CurrencyRate(code: 'ZWG', symbol: 'ZiG', name: 'Zimbabwe Gold', rateToUSD: 0.038, flag: '🇿🇼'),
-    'BWP': CurrencyRate(code: 'BWP', symbol: 'P', name: 'Botswana Pula', rateToUSD: 0.074, flag: '🇧🇼'),
-  };
+  static Map<String, CurrencyRate> rates = {};
 
-  /// Convert amount from one currency to another
+  static void loadFromApi(
+    List<Map<String, dynamic>> currencies,
+    List<Map<String, dynamic>> exchangeRates,
+  ) {
+    final rateToUsd = <String, double>{'USD': 1};
+    for (final row in exchangeRates) {
+      final base = row['base_currency']?.toString();
+      final target = row['target_currency']?.toString();
+      final rate = double.tryParse(row['rate']?.toString() ?? '');
+      if (rate == null || rate <= 0) continue;
+      if (target == 'USD' && base != null) rateToUsd[base] = rate;
+      if (base == 'USD' && target != null) rateToUsd[target] = 1 / rate;
+    }
+    rates = {
+      for (final row in currencies)
+        if (row['code'] != null)
+          row['code'].toString(): CurrencyRate(
+            code: row['code'].toString(),
+            symbol: (row['symbol'] ?? row['code']).toString(),
+            name: (row['name'] ?? row['code']).toString(),
+            rateToUSD: rateToUsd[row['code'].toString()] ?? 0,
+          ),
+    };
+  }
+
   static double convert(double amount, String fromCurrency, String toCurrency) {
     if (fromCurrency == toCurrency) return amount;
-    final fromRate = rates[fromCurrency]?.rateToUSD ?? 1.0;
-    final toRate = rates[toCurrency]?.rateToUSD ?? 1.0;
-
-    // Convert from source to USD, then from USD to target
-    final amountInUSD = amount * fromRate;
-    return amountInUSD / toRate;
+    final fromRate = rates[fromCurrency]?.rateToUSD ?? 0;
+    final toRate = rates[toCurrency]?.rateToUSD ?? 0;
+    if (fromRate <= 0 || toRate <= 0) return amount;
+    return amount * fromRate / toRate;
   }
 
-  /// Calculate total portfolio value across all accounts in the given target currency
   static double calculateTotalIn(List<AccountSummary> accounts, String targetCurrency) {
-    double total = 0.0;
-    for (final acc in accounts) {
-      total += convert(acc.balance, acc.currency, targetCurrency);
-    }
-    return total;
+    return accounts.fold<double>(
+      0,
+      (total, account) => total + convert(account.balance, account.currency, targetCurrency),
+    );
   }
 
-  /// Format currency with its symbol
   static String format(double amount, String currencyCode) {
     final symbol = rates[currencyCode]?.symbol ?? currencyCode;
-    final formattedNum = amount.toStringAsFixed(2).replaceAllMapped(
-      RegExp(r'\B(?=(\d{3})+(?!\d))'),
-      (match) => ',',
-    );
-    return '$symbol$formattedNum';
+    final formatted = amount.toStringAsFixed(2).replaceAllMapped(
+          RegExp(r'\B(?=(\d{3})+(?!\d))'),
+          (_) => ',',
+        );
+    return '$symbol$formatted';
   }
 
-  /// Get symbol for currency code
-  static String getSymbol(String currencyCode) {
-    return rates[currencyCode]?.symbol ?? currencyCode;
-  }
+  static String getSymbol(String currencyCode) => rates[currencyCode]?.symbol ?? currencyCode;
 }

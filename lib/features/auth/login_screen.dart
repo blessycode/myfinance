@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/brand/app_brand.dart';
+import '../../core/services/api_client.dart';
+import '../../core/services/finance_api.dart';
 import '../../core/theme/app_colors.dart';
 import '../home/home_screen.dart';
 
@@ -14,8 +16,8 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
-  final _emailController = TextEditingController(text: 'alex.johnson@email.com');
-  final _passwordController = TextEditingController(text: '••••••••');
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
   bool _isRegister = false;
   bool _obscurePassword = true;
   bool _isLoading = false;
@@ -31,16 +33,49 @@ class _LoginScreenState extends State<LoginScreen> {
   void _submit() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
-    await Future.delayed(const Duration(milliseconds: 600));
-    if (!mounted) return;
-    setState(() => _isLoading = false);
-    Navigator.of(context).pushReplacement(
-      PageRouteBuilder<void>(
-        pageBuilder: (_, __, ___) => const HomeScreen(),
-        transitionsBuilder: (_, animation, __, child) =>
-            FadeTransition(opacity: animation, child: child),
-        transitionDuration: const Duration(milliseconds: 300),
-      ),
+    try {
+      final nameParts = _nameController.text.trim().split(RegExp(r'\s+'));
+      final response = await ApiClient.instance.post(
+        _isRegister ? 'auth/register/' : 'auth/login/',
+        body: _isRegister
+            ? {
+                'email': _emailController.text.trim(),
+                'password': _passwordController.text,
+                'first_name': nameParts.first,
+                'last_name': nameParts.length > 1 ? nameParts.skip(1).join(' ') : '',
+              }
+            : {
+                'email': _emailController.text.trim(),
+                'password': _passwordController.text,
+              },
+      );
+      final tokens = response['tokens'];
+      if (tokens is! Map<String, dynamic>) {
+        throw const ApiException('The server did not return sign-in tokens.');
+      }
+      await ApiClient.instance.saveTokens(tokens);
+      await FinanceApi.instance.refresh();
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        PageRouteBuilder<void>(
+          pageBuilder: (_, __, ___) => const HomeScreen(),
+          transitionsBuilder: (_, animation, __, child) =>
+              FadeTransition(opacity: animation, child: child),
+          transitionDuration: const Duration(milliseconds: 300),
+        ),
+      );
+    } on ApiException catch (error) {
+      if (mounted) _showError(error.message);
+    } catch (_) {
+      if (mounted) _showError('Could not reach the server. Check your connection and API URL.');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
     );
   }
 
@@ -97,16 +132,20 @@ class _LoginScreenState extends State<LoginScreen> {
                 width: double.infinity,
                 height: 50,
                 child: FilledButton(
-                  onPressed: () {
-                    Navigator.pop(sheetContext);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          'Password reset instructions sent to ${resetEmailCtrl.text}',
-                        ),
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    );
+                  onPressed: () async {
+                    try {
+                      final response = await ApiClient.instance.post(
+                        'auth/forgot-password/',
+                        body: {'email': resetEmailCtrl.text.trim()},
+                      );
+                      if (!sheetContext.mounted) return;
+                      Navigator.pop(sheetContext);
+                      _showError(response['detail']?.toString() ?? 'If that account exists, reset instructions were sent.');
+                    } on ApiException catch (error) {
+                      if (sheetContext.mounted) _showError(error.message);
+                    } catch (_) {
+                      if (sheetContext.mounted) _showError('Could not reach the server. Please try again.');
+                    }
                   },
                   style: FilledButton.styleFrom(
                     backgroundColor: isDark ? AppColors.primaryLight : AppColors.primary,
@@ -146,7 +185,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           width: 46,
                           height: 46,
                           decoration: BoxDecoration(
-                            gradient: AppColors.emeraldCardGradient,
+                            color: Colors.white,
                             borderRadius: BorderRadius.circular(14),
                             boxShadow: [
                               BoxShadow(
@@ -156,11 +195,8 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                             ],
                           ),
-                          child: const Icon(
-                            AppBrand.mark,
-                            color: Colors.white,
-                            size: 24,
-                          ),
+                          clipBehavior: Clip.antiAlias,
+                          child: Image.asset(AppBrand.logoAsset, fit: BoxFit.cover),
                         ),
                         const Spacer(),
                         Container(
@@ -185,7 +221,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                               const SizedBox(width: 6),
                               Text(
-                                'DEMO READY',
+                                'SECURE SIGN IN',
                                 style: GoogleFonts.inter(
                                   fontSize: 10,
                                   fontWeight: FontWeight.w700,
@@ -234,7 +270,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         style: GoogleFonts.inter(fontSize: 14),
                         validator: (v) => v == null || v.trim().isEmpty ? 'Please enter your name' : null,
                         decoration: _buildInputDecoration(
-                          hint: 'Alex Johnson',
+                          hint: 'Your name',
                           icon: Icons.person_outline_rounded,
                           isDark: isDark,
                         ),
@@ -264,7 +300,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       controller: _passwordController,
                       obscureText: _obscurePassword,
                       style: GoogleFonts.inter(fontSize: 14),
-                      validator: (v) => v == null || v.length < 6 ? 'Password must be at least 6 characters' : null,
+                      validator: (v) => v == null || v.length < 8 ? 'Password must be at least 8 characters' : null,
                       decoration: _buildInputDecoration(
                         hint: 'Enter your password',
                         icon: Icons.lock_outline_rounded,
@@ -369,7 +405,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                     const SizedBox(height: 24),
 
-                    // Demo Mode Information Box
+                    // API connection information
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.all(14),
@@ -391,7 +427,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           const SizedBox(width: 10),
                           Expanded(
                             child: Text(
-                              'Demo Mode Active: Enter any credentials or click Sign In directly to explore all interactive features with realistic data.',
+                              'Sign in or create an account to connect securely to your JIREH account.',
                               style: GoogleFonts.inter(
                                 fontSize: 11.5,
                                 height: 1.45,

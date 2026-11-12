@@ -1,5 +1,5 @@
 name: myfinance
-description: "Premium Personal Expense Tracker & Financial Management App"
+description: "JIREH personal finance and money management app"
 publish_to: 'none'
 
 version: 1.0.0+1
@@ -16,6 +16,8 @@ dependencies:
   fl_chart: ^0.69.0
   provider: ^6.1.2
   shared_preferences: ^2.3.1
+  http: ^1.2.2
+  flutter_secure_storage: ^9.2.2
   intl: ^0.19.0
   percent_indicator: ^4.2.3
   smooth_page_indicator: ^1.1.0
@@ -29,3 +31,5 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/branding/jireh_logo.png

@@ -3,10 +3,11 @@ import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
-import '../../core/data/mock_data.dart';
+import '../../core/data/finance_state.dart';
 import '../../core/models/models.dart';
 import '../../core/providers/theme_provider.dart';
 import '../../core/services/currency_service.dart';
+import '../../core/services/finance_api.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/formatters.dart';
 import '../../widgets/account_card.dart';
@@ -66,7 +67,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-      // Floating Action Button — bottom-right, above the nav bar
+      // Floating Action Button â€” bottom-right, above the nav bar
       floatingActionButton: Container(
         width: 56,
         height: 56,
@@ -201,23 +202,29 @@ class _HomeScreenState extends State<HomeScreen> {
                     color: AppColors.primary,
                     onTap: () {
                       Navigator.pop(sheetContext);
-                      setState(() => _navIndex = 2);
+                      setState(() => _navIndex = 3);
+                    },
+                  ),
+                  _buildSheetActionTile(
+                    sheetContext: sheetContext,
+                    icon: Icons.event_repeat_rounded,
+                    title: 'Add Recurring Bill',
+                    subtitle: 'Track the next renewal date and amount',
+                    color: AppColors.info,
+                    onTap: () {
+                      Navigator.pop(sheetContext);
+                      _showSubscriptionSheet();
                     },
                   ),
                   _buildSheetActionTile(
                     sheetContext: sheetContext,
                     icon: Icons.receipt_long_outlined,
-                    title: 'Record Debt Payment',
-                    subtitle: 'Track repayments for loans or obligations',
+                    title: 'Track a Debt',
+                    subtitle: 'Record money owed by you or to you',
                     color: AppColors.categoryColors[2],
                     onTap: () {
                       Navigator.pop(sheetContext);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Debt repayment recorded in demo ledger.'),
-                          behavior: SnackBarBehavior.floating,
-                        ),
-                      );
+                      _showDebtSheet();
                     },
                   ),
                 ],
@@ -232,12 +239,12 @@ class _HomeScreenState extends State<HomeScreen> {
   void _showAddAccountSheet() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final nameCtrl = TextEditingController();
-    final balanceCtrl = TextEditingController(text: '1000.00');
+    final balanceCtrl = TextEditingController(text: '0.00');
     String selectedType = 'Bank Account';
-    String selectedCurrency = MockData.primaryCurrency;
+    String selectedCurrency = FinanceState.primaryCurrency;
 
     final types = ['Bank Account', 'Savings', 'Cash Wallet', 'Mobile Money', 'Investment', 'Credit Card'];
-    final currencies = ['USD', 'EUR', 'GBP', 'ZAR', 'ZWG', 'BWP'];
+    final currencies = CurrencyService.rates.keys.toList();
 
     showModalBottomSheet<void>(
       context: context,
@@ -356,7 +363,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     width: double.infinity,
                     height: 48,
                     child: FilledButton(
-                      onPressed: () {
+                      onPressed: () async {
                         final balance = double.tryParse(balanceCtrl.text) ?? 0.0;
                         final name = nameCtrl.text.trim().isNotEmpty
                             ? nameCtrl.text.trim()
@@ -381,27 +388,26 @@ class _HomeScreenState extends State<HomeScreen> {
                           color = const Color(0xFF14B8A6);
                         }
 
-                        setState(() {
-                          MockData.accounts.add(
-                            AccountSummary(
-                              id: 'acc_${DateTime.now().millisecondsSinceEpoch}',
-                              name: name,
-                              type: selectedType,
-                              currency: selectedCurrency,
-                              balance: balance,
-                              icon: icon,
-                              color: color,
-                            ),
+                        try {
+                          await FinanceApi.instance.addAccount(
+                            name: name,
+                            accountType: selectedType,
+                            currency: selectedCurrency,
+                            openingBalance: balance,
+                            color: '#${color.value.toRadixString(16).substring(2)}',
+                            icon: 'account_balance_rounded',
                           );
-                        });
-
-                        Navigator.pop(sheetCtx);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('Added $name (${CurrencyService.format(balance, selectedCurrency)})'),
-                            behavior: SnackBarBehavior.floating,
-                          ),
-                        );
+                          if (!mounted || !sheetCtx.mounted) return;
+                          setState(() {});
+                          Navigator.pop(sheetCtx);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Added $name'), behavior: SnackBarBehavior.floating),
+                          );
+                        } catch (error) {
+                          if (sheetCtx.mounted) {
+                            ScaffoldMessenger.of(sheetCtx).showSnackBar(SnackBar(content: Text(error.toString())));
+                          }
+                        }
                       },
                       style: FilledButton.styleFrom(
                         backgroundColor: AppColors.primary,
@@ -465,8 +471,16 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _showTransferSheet() {
+    if (FinanceState.accounts.length < 2) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Create at least two accounts to transfer between them.')),
+      );
+      return;
+    }
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final amountCtrl = TextEditingController(text: '150.00');
+    final from = FinanceState.accounts.first;
+    final to = FinanceState.accounts[1];
+    final amountCtrl = TextEditingController(text: '0.00');
 
     showModalBottomSheet<void>(
       context: context,
@@ -518,12 +532,12 @@ class _HomeScreenState extends State<HomeScreen> {
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            'From: ${MockData.accounts.first.name}',
+                            'From: ${from.name}',
                             style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600),
                           ),
                         ),
                         Text(
-                          '${CurrencyService.getSymbol(MockData.accounts.first.currency)}${Formatters.amount(MockData.accounts.first.balance)}',
+                          '${CurrencyService.getSymbol(from.currency)}${Formatters.amount(from.balance)}',
                           style: GoogleFonts.inter(fontSize: 12, color: AppColors.textSecondaryLight),
                         ),
                       ],
@@ -535,14 +549,12 @@ class _HomeScreenState extends State<HomeScreen> {
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            'To: ${MockData.accounts.length > 1 ? MockData.accounts[1].name : "Reserve"}',
+                            'To: ${to.name}',
                             style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600),
                           ),
                         ),
                         Text(
-                          MockData.accounts.length > 1
-                              ? '${CurrencyService.getSymbol(MockData.accounts[1].currency)}${Formatters.amount(MockData.accounts[1].balance)}'
-                              : '',
+                          '${CurrencyService.getSymbol(to.currency)}${Formatters.amount(to.balance)}',
                           style: GoogleFonts.inter(fontSize: 12, color: AppColors.textSecondaryLight),
                         ),
                       ],
@@ -556,8 +568,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w700),
                 decoration: InputDecoration(
-                  labelText: 'Amount (${MockData.accounts.first.currency})',
-                  prefixText: '${CurrencyService.getSymbol(MockData.accounts.first.currency)} ',
+                  labelText: 'Amount (${from.currency})',
+                  prefixText: '${CurrencyService.getSymbol(from.currency)} ',
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
                 ),
               ),
@@ -566,14 +578,26 @@ class _HomeScreenState extends State<HomeScreen> {
                 width: double.infinity,
                 height: 48,
                 child: FilledButton(
-                  onPressed: () {
-                    Navigator.pop(transferContext);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Transferred ${CurrencyService.getSymbol(MockData.accounts.first.currency)}${amountCtrl.text}'),
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    );
+                  onPressed: () async {
+                    final amount = double.tryParse(amountCtrl.text) ?? 0;
+                    if (amount <= 0) return;
+                    try {
+                      await FinanceApi.instance.createTransfer({
+                        'from_account': from.id,
+                        'to_account': to.id,
+                        'amount': amount.toStringAsFixed(2),
+                        'description': 'Account transfer',
+                        'transaction_date': DateTime.now().toIso8601String().split('T').first,
+                      });
+                      await FinanceApi.instance.refresh();
+                      if (!mounted || !transferContext.mounted) return;
+                      Navigator.pop(transferContext);
+                      setState(() {});
+                    } catch (error) {
+                      if (transferContext.mounted) {
+                        ScaffoldMessenger.of(transferContext).showSnackBar(SnackBar(content: Text(error.toString())));
+                      }
+                    }
                   },
                   style: FilledButton.styleFrom(
                     backgroundColor: AppColors.primary,
@@ -588,11 +612,115 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
+
+  void _showSubscriptionSheet() {
+    final name = TextEditingController();
+    final merchant = TextEditingController();
+    final amount = TextEditingController(text: '0.00');
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) => Padding(
+        padding: EdgeInsets.fromLTRB(24, 12, 24, MediaQuery.of(sheetContext).viewInsets.bottom + 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(controller: name, decoration: const InputDecoration(labelText: 'Subscription or bill name')),
+            TextField(controller: merchant, decoration: const InputDecoration(labelText: 'Provider')),
+            TextField(controller: amount, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: 'Amount (${FinanceState.primaryCurrency})')),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: () async {
+                  final value = double.tryParse(amount.text) ?? 0;
+                  if (name.text.trim().isEmpty || value <= 0) {
+                    ScaffoldMessenger.of(sheetContext).showSnackBar(const SnackBar(content: Text('Enter a bill name and amount above zero.')));
+                    return;
+                  }
+                  try {
+                    await FinanceApi.instance.createSubscription({
+                      'name': name.text.trim(),
+                      'merchant': merchant.text.trim(),
+                      'amount': value.toStringAsFixed(2),
+                      'currency': FinanceState.primaryCurrency,
+                      'frequency': 'monthly',
+                      'next_due_date': DateTime.now().add(const Duration(days: 30)).toIso8601String().split('T').first,
+                      if (FinanceState.accounts.isNotEmpty) 'account': FinanceState.accounts.first.id,
+                    });
+                    await FinanceApi.instance.refresh();
+                    if (!mounted || !sheetContext.mounted) return;
+                    setState(() {});
+                    Navigator.pop(sheetContext);
+                  } catch (error) {
+                    if (sheetContext.mounted) ScaffoldMessenger.of(sheetContext).showSnackBar(SnackBar(content: Text(error.toString())));
+                  }
+                },
+                child: const Text('Save Recurring Bill'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showDebtSheet() {
+    final name = TextEditingController();
+    final counterparty = TextEditingController();
+    final amount = TextEditingController(text: '0.00');
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) => Padding(
+        padding: EdgeInsets.fromLTRB(24, 12, 24, MediaQuery.of(sheetContext).viewInsets.bottom + 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(controller: name, decoration: const InputDecoration(labelText: 'Debt name')),
+            TextField(controller: counterparty, decoration: const InputDecoration(labelText: 'Person or organization')),
+            TextField(controller: amount, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: 'Amount (${FinanceState.primaryCurrency})')),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: () async {
+                  final value = double.tryParse(amount.text) ?? 0;
+                  if (name.text.trim().isEmpty || counterparty.text.trim().isEmpty || value <= 0) {
+                    ScaffoldMessenger.of(sheetContext).showSnackBar(const SnackBar(content: Text('Enter a debt name, counterparty, and amount above zero.')));
+                    return;
+                  }
+                  try {
+                    await FinanceApi.instance.createDebt({
+                      'name': name.text.trim(),
+                      'debt_type': 'borrowed',
+                      'counterparty': counterparty.text.trim(),
+                      'original_amount': value.toStringAsFixed(2),
+                      'currency': FinanceState.primaryCurrency,
+                    });
+                    await FinanceApi.instance.refresh();
+                    if (!mounted || !sheetContext.mounted) return;
+                    setState(() {});
+                    Navigator.pop(sheetContext);
+                  } catch (error) {
+                    if (sheetContext.mounted) ScaffoldMessenger.of(sheetContext).showSnackBar(SnackBar(content: Text(error.toString())));
+                  }
+                },
+                child: const Text('Save Debt'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Home Tab Presentation
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _HomeTab extends StatefulWidget {
   final VoidCallback onOpenNotifications;
@@ -628,12 +756,12 @@ class _HomeTabState extends State<_HomeTab> {
   void _showAddAccountSheet() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final nameCtrl = TextEditingController();
-    final balanceCtrl = TextEditingController(text: '1000.00');
+    final balanceCtrl = TextEditingController(text: '0.00');
     String selectedType = 'Bank Account';
-    String selectedCurrency = MockData.primaryCurrency;
+    String selectedCurrency = FinanceState.primaryCurrency;
 
     final types = ['Bank Account', 'Savings', 'Cash Wallet', 'Mobile Money', 'Investment', 'Credit Card'];
-    final currencies = ['USD', 'EUR', 'GBP', 'ZAR', 'ZWG', 'BWP'];
+    final currencies = CurrencyService.rates.keys.toList();
 
     showModalBottomSheet<void>(
       context: context,
@@ -746,7 +874,7 @@ class _HomeTabState extends State<_HomeTab> {
                     width: double.infinity,
                     height: 48,
                     child: FilledButton(
-                      onPressed: () {
+                      onPressed: () async {
                         final balance = double.tryParse(balanceCtrl.text) ?? 0.0;
                         final name = nameCtrl.text.trim().isNotEmpty
                             ? nameCtrl.text.trim()
@@ -771,27 +899,26 @@ class _HomeTabState extends State<_HomeTab> {
                           color = const Color(0xFF14B8A6);
                         }
 
-                        setState(() {
-                          MockData.accounts.add(
-                            AccountSummary(
-                              id: 'acc_${DateTime.now().millisecondsSinceEpoch}',
-                              name: name,
-                              type: selectedType,
-                              currency: selectedCurrency,
-                              balance: balance,
-                              icon: icon,
-                              color: color,
-                            ),
+                        try {
+                          await FinanceApi.instance.addAccount(
+                            name: name,
+                            accountType: selectedType,
+                            currency: selectedCurrency,
+                            openingBalance: balance,
+                            color: '#${color.value.toRadixString(16).substring(2)}',
+                            icon: 'account_balance_rounded',
                           );
-                        });
-                        widget.onDataChanged();
-                        Navigator.pop(sheetCtx);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('Added $name (${CurrencyService.format(balance, selectedCurrency)})'),
-                            behavior: SnackBarBehavior.floating,
-                          ),
-                        );
+                          if (!mounted || !sheetCtx.mounted) return;
+                          widget.onDataChanged();
+                          Navigator.pop(sheetCtx);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Added $name'), behavior: SnackBarBehavior.floating),
+                          );
+                        } catch (error) {
+                          if (sheetCtx.mounted) {
+                            ScaffoldMessenger.of(sheetCtx).showSnackBar(SnackBar(content: Text(error.toString())));
+                          }
+                        }
                       },
                       style: FilledButton.styleFrom(
                         backgroundColor: AppColors.primary,
@@ -811,7 +938,7 @@ class _HomeTabState extends State<_HomeTab> {
 
   void _switchDisplayCurrency() async {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    const currencies = ['USD', 'EUR', 'GBP', 'ZAR', 'ZWG', 'BWP'];
+    final currencies = CurrencyService.rates.keys.toList();
 
     final selected = await showModalBottomSheet<String>(
       context: context,
@@ -840,10 +967,10 @@ class _HomeTabState extends State<_HomeTab> {
                 const SizedBox(height: 14),
                 ...currencies.map((c) {
                   final rate = CurrencyService.rates[c];
-                  final isSelected = MockData.primaryCurrency == c;
+                  final isSelected = FinanceState.primaryCurrency == c;
                   return ListTile(
                     contentPadding: const EdgeInsets.symmetric(horizontal: 4),
-                    leading: Text(rate?.flag ?? '🌐', style: const TextStyle(fontSize: 22)),
+                    leading: Text(rate?.flag ?? 'ðŸŒ', style: const TextStyle(fontSize: 22)),
                     title: Text('$c - ${rate?.name}', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
                     trailing: isSelected
                         ? const Icon(Icons.check_circle_rounded, color: AppColors.accent, size: 20)
@@ -859,25 +986,34 @@ class _HomeTabState extends State<_HomeTab> {
     );
 
     if (selected != null) {
-      setState(() {
-        MockData.primaryCurrency = selected;
-      });
-      widget.onDataChanged();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Viewing portfolio in $selected (${CurrencyService.getSymbol(selected)})'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      try {
+        await FinanceApi.instance.updateProfile({'preferred_currency': selected});
+        await FinanceApi.instance.refresh();
+        FinanceState.primaryCurrency = selected;
+        if (mounted) setState(() {});
+        widget.onDataChanged();
+      } catch (error) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final convertedTotal = MockData.totalBalance;
-    final primaryCurr = MockData.primaryCurrency;
+    final convertedTotal = double.tryParse(FinanceState.dashboard['total_balance']?.toString() ?? '') ?? 0;
+    final primaryCurr = FinanceState.primaryCurrency;
     final currSymbol = CurrencyService.getSymbol(primaryCurr);
+    final profileName = [FinanceState.profile['first_name'], FinanceState.profile['last_name']]
+        .where((value) => value != null && value.toString().trim().isNotEmpty)
+        .join(' ');
+    final holdings = <String, double>{};
+    for (final account in FinanceState.accounts) {
+      holdings.update(account.currency, (balance) => balance + account.balance, ifAbsent: () => account.balance);
+    }
+    final savingsRate = FinanceState.monthlyIncomeCurrent <= 0
+        ? 0.0
+        : FinanceState.savingsThisMonth / FinanceState.monthlyIncomeCurrent * 100;
 
     return CustomScrollView(
       slivers: [
@@ -905,7 +1041,7 @@ class _HomeTabState extends State<_HomeTab> {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'Alex Johnson',
+                        profileName.isEmpty ? (FinanceState.profile['email']?.toString() ?? '') : profileName,
                         style: GoogleFonts.inter(
                           fontSize: 20,
                           fontWeight: FontWeight.w700,
@@ -929,7 +1065,7 @@ class _HomeTabState extends State<_HomeTab> {
                     child: Row(
                       children: [
                         Text(
-                          CurrencyService.rates[primaryCurr]?.flag ?? '🌐',
+                          CurrencyService.rates[primaryCurr]?.flag ?? 'ðŸŒ',
                           style: const TextStyle(fontSize: 14),
                         ),
                         const SizedBox(width: 5),
@@ -1018,11 +1154,11 @@ class _HomeTabState extends State<_HomeTab> {
             padding: const EdgeInsets.fromLTRB(20, 2, 20, 16),
             child: FinancialBalanceCard(
               totalBalance: convertedTotal,
-              monthlyIncome: CurrencyService.convert(MockData.monthlyIncomeCurrent, 'USD', primaryCurr),
-              monthlyExpense: CurrencyService.convert(MockData.monthlyExpenseCurrent, 'USD', primaryCurr),
-              monthlySavings: CurrencyService.convert(MockData.savingsThisMonth, 'USD', primaryCurr),
+              monthlyIncome: FinanceState.monthlyIncomeCurrent,
+              monthlyExpense: FinanceState.monthlyExpenseCurrent,
+              monthlySavings: FinanceState.savingsThisMonth,
               currency: primaryCurr,
-              percentageChange: '+8.2%',
+              percentageChange: '${savingsRate.toStringAsFixed(1)}% savings rate',
               isBalanceVisible: _isBalanceVisible,
               onToggleVisibility: () => setState(() => _isBalanceVisible = !_isBalanceVisible),
             ).animate().fadeIn(delay: 80.ms, duration: 450.ms),
@@ -1048,7 +1184,7 @@ class _HomeTabState extends State<_HomeTab> {
                     ),
                     const Spacer(),
                     Text(
-                      'Live Rates Pegged',
+                      'From your accounts',
                       style: GoogleFonts.inter(
                         fontSize: 11,
                         color: AppColors.income,
@@ -1062,17 +1198,16 @@ class _HomeTabState extends State<_HomeTab> {
                   height: 38,
                   child: ListView(
                     scrollDirection: Axis.horizontal,
-                    children: [
-                      _buildCurrencyBadge('USD', '\$4,820', isDark),
-                      const SizedBox(width: 8),
-                      _buildCurrencyBadge('EUR', '€11,500', isDark),
-                      const SizedBox(width: 8),
-                      _buildCurrencyBadge('ZWG', 'ZiG 35,000', isDark),
-                      const SizedBox(width: 8),
-                      _buildCurrencyBadge('ZAR', 'R25,000', isDark),
-                      const SizedBox(width: 8),
-                      _buildCurrencyBadge('GBP', '£2,100', isDark),
-                    ],
+                    children: holdings.entries
+                        .map((entry) => Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: _buildCurrencyBadge(
+                                entry.key,
+                                '${CurrencyService.getSymbol(entry.key)}${Formatters.amount(entry.value)}',
+                                isDark,
+                              ),
+                            ))
+                        .toList(),
                   ),
                 ),
               ],
@@ -1135,19 +1270,19 @@ class _HomeTabState extends State<_HomeTab> {
                   child: ListView.separated(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     scrollDirection: Axis.horizontal,
-                    itemCount: MockData.accounts.length + 1,
+                    itemCount: FinanceState.accounts.length + 1,
                     separatorBuilder: (_, __) => const SizedBox(width: 12),
                     itemBuilder: (context, index) {
-                      if (index == MockData.accounts.length) {
+                      if (index == FinanceState.accounts.length) {
                         return AccountCard(
                           isAddButton: true,
                           onTap: _showAddAccountSheet,
                         );
                       }
                       return AccountCard(
-                        account: MockData.accounts[index],
+                        account: FinanceState.accounts[index],
                         onTap: () {
-                          final acc = MockData.accounts[index];
+                          final acc = FinanceState.accounts[index];
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text('${acc.name}: ${CurrencyService.format(acc.balance, acc.currency)}'),
@@ -1229,7 +1364,7 @@ class _HomeTabState extends State<_HomeTab> {
                         ),
                         const SizedBox(height: 3),
                         Text(
-                          'Your portfolio spans ${MockData.accounts.length} accounts across USD, EUR, ZWG, and ZAR. Net converted value is $currSymbol${Formatters.amount(convertedTotal)}.',
+                          '${FinanceState.accounts.length} active accounts. Total recorded balance is $currSymbol${Formatters.amount(convertedTotal)}.',
                           style: GoogleFonts.inter(
                             fontSize: 11.5,
                             height: 1.4,
@@ -1304,7 +1439,7 @@ class _HomeTabState extends State<_HomeTab> {
                     padding: const EdgeInsets.symmetric(vertical: 6),
                     physics: const NeverScrollableScrollPhysics(),
                     shrinkWrap: true,
-                    itemCount: MockData.transactions.take(5).length,
+                    itemCount: FinanceState.transactions.take(5).length,
                     separatorBuilder: (_, __) => Divider(
                       height: 1,
                       indent: 68,
@@ -1312,8 +1447,8 @@ class _HomeTabState extends State<_HomeTab> {
                       color: isDark ? AppColors.borderDark : AppColors.borderLight,
                     ),
                     itemBuilder: (context, index) {
-                      final tx = MockData.transactions[index];
-                      final cat = MockData.categoryById(tx.categoryId);
+                      final tx = FinanceState.transactions[index];
+                      final cat = FinanceState.categoryById(tx.categoryId);
                       return TransactionTile(
                         transaction: tx,
                         category: cat,
@@ -1348,10 +1483,10 @@ class _HomeTabState extends State<_HomeTab> {
                   height: 104,
                   child: ListView.separated(
                     scrollDirection: Axis.horizontal,
-                    itemCount: MockData.bills.length,
+                    itemCount: FinanceState.bills.length,
                     separatorBuilder: (_, __) => const SizedBox(width: 12),
                     itemBuilder: (context, index) {
-                      final bill = MockData.bills[index];
+                      final bill = FinanceState.bills[index];
                       final isDueSoon = bill.isDueSoon;
                       return Container(
                         width: 140,
@@ -1436,8 +1571,8 @@ class _HomeTabState extends State<_HomeTab> {
   }
 
   Widget _buildCurrencyBadge(String code, String formatted, bool isDark) {
-    final flag = CurrencyService.rates[code]?.flag ?? '🌐';
-    final isSelected = MockData.primaryCurrency == code;
+    final flag = CurrencyService.rates[code]?.flag ?? 'ðŸŒ';
+    final isSelected = FinanceState.primaryCurrency == code;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),

@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../core/data/mock_data.dart';
+import '../../core/data/finance_state.dart';
 import '../../core/models/models.dart';
 import '../../core/services/currency_service.dart';
+import '../../core/services/finance_api.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/formatters.dart';
 import '../../widgets/app_section_header.dart';
@@ -22,10 +23,16 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   String _searchQuery = '';
   final _searchController = TextEditingController();
 
-  final List<String> _filters = ['All', 'Expense', 'Income', 'USD', 'EUR', 'ZWG', 'ZAR', 'Food', 'Transport', 'Shopping'];
+  late final List<String> _filters = [
+    'All',
+    'Expense',
+    'Income',
+    ...CurrencyService.rates.keys,
+    ...FinanceState.categories.map((category) => category.name),
+  ];
 
   List<Transaction> get _filteredTransactions {
-    var list = MockData.transactions;
+    var list = FinanceState.transactions;
     if (_searchQuery.trim().isNotEmpty) {
       final q = _searchQuery.toLowerCase();
       list = list.where((t) => t.title.toLowerCase().contains(q) || t.merchant.toLowerCase().contains(q) || t.currency.toLowerCase().contains(q)).toList();
@@ -35,19 +42,21 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         return list.where((t) => t.type == TransactionType.expense).toList();
       case 'Income':
         return list.where((t) => t.type == TransactionType.income).toList();
-      case 'USD':
-      case 'EUR':
-      case 'ZWG':
-      case 'ZAR':
-        return list.where((t) => t.currency == _selectedFilter).toList();
-      case 'Food':
-        return list.where((t) => t.categoryId == 'food').toList();
-      case 'Transport':
-        return list.where((t) => t.categoryId == 'transport').toList();
-      case 'Shopping':
-        return list.where((t) => t.categoryId == 'shopping').toList();
       default:
-        return list;
+        if (CurrencyService.rates.containsKey(_selectedFilter)) {
+          return list.where((transaction) => transaction.currency == _selectedFilter).toList();
+        }
+        Category? category;
+        for (final value in FinanceState.categories) {
+          if (value.name == _selectedFilter) {
+            category = value;
+            break;
+          }
+        }
+        final categoryId = category?.id;
+        return categoryId == null
+            ? list
+            : list.where((transaction) => transaction.categoryId == categoryId).toList();
     }
   }
 
@@ -235,11 +244,11 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     final netDayTotal = transactions.fold<double>(
       0,
       (sum, t) {
-        final converted = CurrencyService.convert(t.amount, t.currency, MockData.primaryCurrency);
+        final converted = CurrencyService.convert(t.amount, t.currency, FinanceState.primaryCurrency);
         return t.type == TransactionType.income ? sum + converted : sum - converted;
       },
     );
-    final primarySym = CurrencyService.getSymbol(MockData.primaryCurrency);
+    final primarySym = CurrencyService.getSymbol(FinanceState.primaryCurrency);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -296,7 +305,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             ),
             itemBuilder: (context, index) {
               final tx = transactions[index];
-              final cat = MockData.categoryById(tx.categoryId);
+              final cat = FinanceState.categoryById(tx.categoryId);
               return Dismissible(
                 key: Key(tx.id),
                 direction: DismissDirection.endToStart,
@@ -327,14 +336,18 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                       ) ??
                       false;
                 },
-                onDismissed: (_) {
-                  setState(() => MockData.transactions.removeWhere((item) => item.id == tx.id));
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Deleted ${tx.title}'),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
+                onDismissed: (_) async {
+                  try {
+                    await FinanceApi.instance.reverseTransaction(tx.id);
+                    await FinanceApi.instance.refresh();
+                    if (mounted) setState(() {});
+                  } catch (error) {
+                    if (mounted) {
+                      await FinanceApi.instance.refresh();
+                      setState(() {});
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
+                    }
+                  }
                 },
                 child: TransactionTile(
                   transaction: tx,
@@ -351,8 +364,8 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
 
   void _showDetailSheet(Transaction tx, Category cat, bool isDark) {
     final sym = CurrencyService.getSymbol(tx.currency);
-    final converted = CurrencyService.convert(tx.amount, tx.currency, MockData.primaryCurrency);
-    final primarySym = CurrencyService.getSymbol(MockData.primaryCurrency);
+    final converted = CurrencyService.convert(tx.amount, tx.currency, FinanceState.primaryCurrency);
+    final primarySym = CurrencyService.getSymbol(FinanceState.primaryCurrency);
 
     showModalBottomSheet<void>(
       context: context,
@@ -422,10 +435,10 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                     _buildRow('Category', cat.name, isDark),
                     const Divider(height: 16),
                     _buildRow('Original Currency', '${tx.currency} ($sym)', isDark),
-                    if (tx.currency != MockData.primaryCurrency) ...[
+                    if (tx.currency != FinanceState.primaryCurrency) ...[
                       const Divider(height: 16),
                       _buildRow(
-                        'Converted to ${MockData.primaryCurrency}',
+                        'Converted to ${FinanceState.primaryCurrency}',
                         '$primarySym${Formatters.amount(converted)}',
                         isDark,
                       ),

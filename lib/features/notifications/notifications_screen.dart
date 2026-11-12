@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../core/data/finance_state.dart';
+import '../../core/services/finance_api.dart';
 import '../../core/theme/app_colors.dart';
 import '../../widgets/app_section_header.dart';
+import '../../widgets/empty_state.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -11,75 +14,42 @@ class NotificationsScreen extends StatefulWidget {
 }
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
-  late final List<_NoticeItem> _notices = [
-    _NoticeItem(
-      icon: Icons.warning_amber_rounded,
-      title: 'Budget Alert: Shopping at 97%',
-      body: 'Your Shopping budget is approaching its limit. Only \$11.01 remains for this period.',
-      time: '2h ago',
-      color: AppColors.warning,
-      isUnread: true,
-      category: 'Budget',
-    ),
-    _NoticeItem(
-      icon: Icons.south_west_rounded,
-      title: 'Direct Deposit Received',
-      body: 'A \$5,200.00 payroll deposit from TechCorp Inc. was credited to Everyday Account.',
-      time: '3h ago',
-      color: AppColors.income,
-      isUnread: true,
-      category: 'Deposit',
-    ),
-    _NoticeItem(
-      icon: Icons.event_outlined,
-      title: 'Upcoming Bill: Netflix',
-      body: 'Netflix subscription for \$15.99 is scheduled to renew in 2 days.',
-      time: '5h ago',
-      color: AppColors.categoryColors[4],
-      isUnread: false,
-      category: 'Bill',
-    ),
-    _NoticeItem(
-      icon: Icons.track_changes_rounded,
-      title: 'Milestone Progress: Europe Vacation',
-      body: 'Congratulations! Your vacation savings goal is now 64% funded (\$3,200 / \$5,000).',
-      time: 'Yesterday',
-      color: AppColors.primary,
-      isUnread: false,
-      category: 'Goal',
-    ),
-    _NoticeItem(
-      icon: Icons.insights_rounded,
-      title: 'Weekly Financial Digest Ready',
-      body: 'You preserved \$1,450.75 in savings this week with lower dining out expenses.',
-      time: 'Yesterday',
-      color: AppColors.categoryColors[1],
-      isUnread: false,
-      category: 'Insight',
-    ),
-    _NoticeItem(
-      icon: Icons.receipt_long_outlined,
-      title: 'Review Large Transaction',
-      body: 'A \$420.00 purchase at Delta Airlines was recorded. Confirm the category assignment.',
-      time: '3 days ago',
-      color: AppColors.expense,
-      isUnread: false,
-      category: 'Security',
-    ),
-  ];
+  late final List<_NoticeItem> _notices = FinanceState.notifications.map(_noticeFromApi).toList();
 
-  void _markAllAsRead() {
-    setState(() {
-      for (final n in _notices) {
-        n.isUnread = false;
-      }
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('All notifications marked as read'),
-        behavior: SnackBarBehavior.floating,
-      ),
+  _NoticeItem _noticeFromApi(Map<String, dynamic> row) {
+    final type = (row['notification_type'] ?? 'system').toString();
+    final created = DateTime.tryParse((row['created_at'] ?? '').toString())?.toLocal();
+    final time = _relativeTime(created);
+    return _NoticeItem(
+      id: row['id'].toString(),
+      icon: type.contains('budget') ? Icons.warning_amber_rounded : type.contains('bill')
+          ? Icons.event_outlined : type.contains('goal') ? Icons.track_changes_rounded : Icons.notifications_outlined,
+      title: (row['title'] ?? '').toString(),
+      body: (row['body'] ?? '').toString(),
+      time: time,
+      color: type.contains('budget') ? AppColors.warning : type.contains('security') ? AppColors.expense : AppColors.primary,
+      category: type.replaceAll('_', ' '),
+      isUnread: row['is_read'] != true,
     );
+  }
+
+  String _relativeTime(DateTime? created) {
+    if (created == null) return '';
+    final age = DateTime.now().difference(created);
+    if (age.inDays > 0) return '${age.inDays}d ago';
+    if (age.inHours > 0) return '${age.inHours}h ago';
+    return '${age.inMinutes}m ago';
+  }
+
+  Future<void> _markAllAsRead() async {
+    try {
+      await FinanceApi.instance.markAllNotificationsRead();
+      setState(() {
+        for (final notice in _notices) { notice.isUnread = false; }
+      });
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
+    }
   }
 
   @override
@@ -115,7 +85,13 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
             // Notification List
             Expanded(
-              child: ListView.separated(
+              child: _notices.isEmpty
+                  ? const EmptyState(
+                      icon: Icons.notifications_none_rounded,
+                      title: 'No notifications yet',
+                      description: 'Alerts will appear here when your account has updates.',
+                    )
+                  : ListView.separated(
                 padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
                 itemCount: _notices.length,
                 separatorBuilder: (_, __) => const SizedBox(height: 10),
@@ -124,8 +100,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   return Material(
                     color: Colors.transparent,
                     child: InkWell(
-                      onTap: () {
-                        if (notice.isUnread) setState(() => notice.isUnread = false);
+                      onTap: () async {
+                        if (notice.isUnread) {
+                          try {
+                            await FinanceApi.instance.markNotificationRead(notice.id);
+                            if (mounted) setState(() => notice.isUnread = false);
+                          } catch (error) {
+                            if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
+                          }
+                        }
                       },
                       borderRadius: BorderRadius.circular(18),
                       child: Container(
@@ -223,6 +206,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 }
 
 class _NoticeItem {
+  final String id;
   final IconData icon;
   final String title;
   final String body;
@@ -232,6 +216,7 @@ class _NoticeItem {
   bool isUnread;
 
   _NoticeItem({
+    required this.id,
     required this.icon,
     required this.title,
     required this.body,

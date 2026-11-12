@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../core/models/models.dart';
 import '../core/theme/app_colors.dart';
 import '../core/utils/formatters.dart';
+import '../core/services/currency_service.dart';
 
 class GoalCard extends StatelessWidget {
   final Goal goal;
@@ -129,7 +130,7 @@ class GoalCard extends StatelessWidget {
                 textBaseline: TextBaseline.alphabetic,
                 children: [
                   Text(
-                    '\$${Formatters.amount(goal.saved)}',
+                  '${CurrencyService.getSymbol(goal.currency)}${Formatters.amount(goal.saved)}',
                     style: GoogleFonts.inter(
                       fontSize: 20,
                       fontWeight: FontWeight.w700,
@@ -139,7 +140,7 @@ class GoalCard extends StatelessWidget {
                   ),
                   const SizedBox(width: 6),
                   Text(
-                    'of \$${Formatters.amount(goal.target)}',
+                    'of ${CurrencyService.getSymbol(goal.currency)}${Formatters.amount(goal.target)}',
                     style: GoogleFonts.inter(
                       fontSize: 12.5,
                       fontWeight: FontWeight.w500,

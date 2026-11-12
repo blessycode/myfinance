@@ -74,6 +74,7 @@ class Budget {
   final String categoryId;
   final double limit;
   final double spent;
+  final String currency;
   final DateTime month;
   final Color color;
 
@@ -83,6 +84,7 @@ class Budget {
     required this.categoryId,
     required this.limit,
     required this.spent,
+    this.currency = 'USD',
     required this.month,
     required this.color,
   });
@@ -99,6 +101,7 @@ class Goal {
   final String emoji;
   final double target;
   final double saved;
+  final String currency;
   final DateTime deadline;
   final Color color;
   final Color backgroundColor;
@@ -109,6 +112,7 @@ class Goal {
     required this.emoji,
     required this.target,
     required this.saved,
+    this.currency = 'USD',
     required this.deadline,
     required this.color,
     required this.backgroundColor,

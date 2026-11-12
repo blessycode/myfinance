@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:percent_indicator/percent_indicator.dart';
-import '../../core/data/mock_data.dart';
+import '../../core/data/finance_state.dart';
 import '../../core/models/models.dart';
+import '../../core/services/finance_api.dart';
+import '../../core/services/currency_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/formatters.dart';
 import '../../widgets/app_section_header.dart';
@@ -23,15 +25,18 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
   void _openAddBudgetSheet() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final nameCtrl = TextEditingController();
-    final limitCtrl = TextEditingController(text: '300.00');
-    String selectedCategory = 'food';
+    final limitCtrl = TextEditingController(text: '0.00');
+    final expenseCategories = FinanceState.categories.where((c) =>
+        !['salary', 'business', 'freelance', 'investments', 'interest', 'gifts'].contains(c.name.toLowerCase())).toList();
+    String selectedCategory = expenseCategories.isEmpty ? '' : expenseCategories.first.id;
 
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
       backgroundColor: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
-      builder: (sheetCtx) => Padding(
+      builder: (sheetCtx) => StatefulBuilder(
+        builder: (sheetCtx, setSheetState) => Padding(
         padding: EdgeInsets.fromLTRB(
           24,
           8,
@@ -70,14 +75,26 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
                 ),
               ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                value: selectedCategory.isEmpty ? null : selectedCategory,
+                decoration: const InputDecoration(labelText: 'Expense category'),
+                items: expenseCategories.map((category) => DropdownMenuItem(
+                  value: category.id,
+                  child: Text(category.name),
+                )).toList(),
+                onChanged: (value) {
+                  if (value != null) setSheetState(() => selectedCategory = value);
+                },
+              ),
               const SizedBox(height: 14),
               TextField(
                 controller: limitCtrl,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700),
                 decoration: InputDecoration(
-                  labelText: 'Monthly Limit (USD)',
-                  prefixText: '\$ ',
+                  labelText: 'Monthly Limit (${FinanceState.primaryCurrency})',
+                  prefixText: '${CurrencyService.getSymbol(FinanceState.primaryCurrency)} ',
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
                 ),
               ),
@@ -86,31 +103,36 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
                 width: double.infinity,
                 height: 48,
                 child: FilledButton(
-                  onPressed: () {
-                    final limit = double.tryParse(limitCtrl.text) ?? 200.0;
+                  onPressed: () async {
+                    final limit = double.tryParse(limitCtrl.text) ?? 0.0;
+                    if (limit <= 0 || selectedCategory.isEmpty) {
+                      ScaffoldMessenger.of(sheetCtx).showSnackBar(const SnackBar(content: Text('Choose a category and enter a limit above zero.')));
+                      return;
+                    }
                     final name = nameCtrl.text.trim().isNotEmpty
                         ? nameCtrl.text.trim()
-                        : 'New Budget';
-                    setState(() {
-                      MockData.budgets.add(
-                        Budget(
-                          id: 'b_${DateTime.now().millisecondsSinceEpoch}',
-                          name: name,
-                          categoryId: selectedCategory,
-                          limit: limit,
-                          spent: 0.0,
-                          month: DateTime.now(),
-                          color: AppColors.primary,
-                        ),
-                      );
-                    });
-                    Navigator.pop(sheetCtx);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Created budget for $name'),
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    );
+                        : FinanceState.categoryById(selectedCategory).name;
+                    final today = DateTime.now();
+                    final monthStart = DateTime(today.year, today.month, 1);
+                    final monthEnd = DateTime(today.year, today.month + 1, 0);
+                    try {
+                      await FinanceApi.instance.createBudget({
+                        'name': name,
+                        'category': selectedCategory,
+                        'amount': limit.toStringAsFixed(2),
+                        'currency': FinanceState.primaryCurrency,
+                        'period': 'monthly',
+                        'start_date': monthStart.toIso8601String().split('T').first,
+                        'end_date': monthEnd.toIso8601String().split('T').first,
+                        'color': '#10B981',
+                      });
+                      await FinanceApi.instance.refresh();
+                      if (!mounted || !sheetCtx.mounted) return;
+                      setState(() {});
+                      Navigator.pop(sheetCtx);
+                    } catch (error) {
+                      if (sheetCtx.mounted) ScaffoldMessenger.of(sheetCtx).showSnackBar(SnackBar(content: Text(error.toString())));
+                    }
                   },
                   style: FilledButton.styleFrom(
                     backgroundColor: AppColors.primary,
@@ -122,6 +144,7 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
             ],
           ),
         ),
+        ),
       ),
     );
   }
@@ -129,10 +152,10 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final totalLimit = MockData.budgets.fold<double>(0, (s, b) => s + b.limit);
-    final totalSpent = MockData.budgets.fold<double>(0, (s, b) => s + b.spent);
+    final totalLimit = FinanceState.budgets.fold<double>(0, (s, b) => s + CurrencyService.convert(b.limit, b.currency, FinanceState.primaryCurrency));
+    final totalSpent = FinanceState.budgets.fold<double>(0, (s, b) => s + CurrencyService.convert(b.spent, b.currency, FinanceState.primaryCurrency));
     final totalRemaining = totalLimit - totalSpent;
-    final totalUsage = (totalSpent / totalLimit).clamp(0.0, 1.0);
+    final totalUsage = totalLimit <= 0 ? 0.0 : (totalSpent / totalLimit).clamp(0.0, 1.0);
 
     return Scaffold(
       backgroundColor: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
@@ -219,7 +242,7 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
                             ),
                             const SizedBox(height: 3),
                             Text(
-                              '\$${Formatters.amount(totalSpent)}',
+                              '${CurrencyService.getSymbol(FinanceState.primaryCurrency)}${Formatters.amount(totalSpent)}',
                               style: GoogleFonts.inter(
                                 fontSize: 24,
                                 fontWeight: FontWeight.w700,
@@ -229,7 +252,7 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              'of \$${Formatters.amount(totalLimit)} limit · \$${Formatters.amount(totalRemaining)} remaining',
+                              'of ${CurrencyService.getSymbol(FinanceState.primaryCurrency)}${Formatters.amount(totalLimit)} limit · ${CurrencyService.getSymbol(FinanceState.primaryCurrency)}${Formatters.amount(totalRemaining)} remaining',
                               style: GoogleFonts.inter(
                                 fontSize: 11.5,
                                 color: Colors.white.withOpacity(0.85),
@@ -250,7 +273,7 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
               sliver: SliverList(
                 delegate: SliverChildBuilderDelegate(
                   (context, index) {
-                    final budget = MockData.budgets[index];
+                    final budget = FinanceState.budgets[index];
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 12),
                       child: BudgetProgressCard(
@@ -258,7 +281,7 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
                         onTap: () {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
-                              content: Text('${budget.name}: \$${Formatters.amount(budget.spent)} spent of \$${Formatters.amount(budget.limit)} limit'),
+                              content: Text('${budget.name}: ${CurrencyService.getSymbol(budget.currency)}${Formatters.amount(budget.spent)} spent of ${CurrencyService.getSymbol(budget.currency)}${Formatters.amount(budget.limit)} limit'),
                               behavior: SnackBarBehavior.floating,
                             ),
                           );
@@ -266,7 +289,7 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
                       ),
                     );
                   },
-                  childCount: MockData.budgets.length,
+                  childCount: FinanceState.budgets.length,
                 ),
               ),
             ),

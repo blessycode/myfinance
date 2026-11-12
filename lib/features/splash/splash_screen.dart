@@ -3,6 +3,9 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/brand/app_brand.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/services/api_client.dart';
+import '../../core/services/finance_api.dart';
+import '../home/home_screen.dart';
 import '../onboarding/onboarding_screen.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -16,11 +19,22 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    Future<void>.delayed(const Duration(milliseconds: 1600), () {
+    Future<void>(() async {
+      final hasSession = await ApiClient.instance.restoreSession();
+      if (hasSession) {
+        try {
+          await FinanceApi.instance.refresh();
+        } catch (_) {
+          // Keep the user signed in; screens show empty state and can retry.
+        }
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 1600));
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
         PageRouteBuilder<void>(
-          pageBuilder: (_, __, ___) => const OnboardingScreen(),
+          pageBuilder: (_, __, ___) => hasSession
+              ? const HomeScreen()
+              : const OnboardingScreen(),
           transitionsBuilder: (_, animation, __, child) =>
               FadeTransition(opacity: animation, child: child),
           transitionDuration: const Duration(milliseconds: 400),
@@ -70,7 +84,7 @@ class _SplashScreenState extends State<SplashScreen> {
                   width: 76,
                   height: 76,
                   decoration: BoxDecoration(
-                    gradient: AppColors.emeraldCardGradient,
+                    color: Colors.white,
                     borderRadius: BorderRadius.circular(24),
                     border: Border.all(color: Colors.white.withOpacity(0.18), width: 1.2),
                     boxShadow: [
@@ -81,12 +95,9 @@ class _SplashScreenState extends State<SplashScreen> {
                       ),
                     ],
                   ),
-                  child: const Center(
-                    child: Icon(
-                      AppBrand.mark,
-                      color: AppColors.accentLight,
-                      size: 36,
-                    ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(24),
+                    child: Image.asset(AppBrand.logoAsset, fit: BoxFit.cover),
                   ),
                 )
                     .animate()

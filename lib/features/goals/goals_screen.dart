@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../core/data/mock_data.dart';
+import '../../core/data/finance_state.dart';
 import '../../core/models/models.dart';
+import '../../core/services/finance_api.dart';
+import '../../core/services/currency_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/formatters.dart';
 import '../../widgets/app_section_header.dart';
@@ -17,7 +19,7 @@ class GoalsScreen extends StatefulWidget {
 class _GoalsScreenState extends State<GoalsScreen> {
   void _openContributeSheet(Goal goal) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final amountCtrl = TextEditingController(text: '100.00');
+    final amountCtrl = TextEditingController(text: '0.00');
 
     showModalBottomSheet<void>(
       context: context,
@@ -45,7 +47,9 @@ class _GoalsScreenState extends State<GoalsScreen> {
             ),
             const SizedBox(height: 4),
             Text(
-              'Funds will be allocated from your Everyday Account.',
+              FinanceState.accounts.isEmpty
+                  ? 'Add an account before contributing to a goal.'
+                  : 'Funds will be allocated from ${FinanceState.accounts.first.name}.',
               style: GoogleFonts.inter(
                 fontSize: 12,
                 color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
@@ -57,8 +61,8 @@ class _GoalsScreenState extends State<GoalsScreen> {
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
               style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w700),
               decoration: InputDecoration(
-                labelText: 'Contribution Amount (USD)',
-                prefixText: '\$ ',
+                labelText: 'Contribution Amount (${goal.currency})',
+                prefixText: '${CurrencyService.getSymbol(goal.currency)} ',
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
               ),
             ),
@@ -67,31 +71,23 @@ class _GoalsScreenState extends State<GoalsScreen> {
               width: double.infinity,
               height: 48,
               child: FilledButton(
-                onPressed: () {
-                  final added = double.tryParse(amountCtrl.text) ?? 50.0;
-                  final index = MockData.goals.indexWhere((g) => g.id == goal.id);
-                  if (index != -1) {
-                    final current = MockData.goals[index];
-                    setState(() {
-                      MockData.goals[index] = Goal(
-                        id: current.id,
-                        name: current.name,
-                        emoji: current.emoji,
-                        target: current.target,
-                        saved: (current.saved + added).clamp(0.0, current.target * 1.5),
-                        deadline: current.deadline,
-                        color: current.color,
-                        backgroundColor: current.backgroundColor,
-                      );
+                onPressed: () async {
+                  if (FinanceState.accounts.isEmpty) return;
+                  final added = double.tryParse(amountCtrl.text) ?? 0;
+                  if (added <= 0) return;
+                  try {
+                    await FinanceApi.instance.contributeToGoal(goal.id, {
+                      'from_account': FinanceState.accounts.first.id,
+                      'amount': added.toStringAsFixed(2),
+                      'note': 'Goal contribution',
                     });
+                    await FinanceApi.instance.refresh();
+                    if (!mounted || !sheetCtx.mounted) return;
+                    setState(() {});
+                    Navigator.pop(sheetCtx);
+                  } catch (error) {
+                    if (sheetCtx.mounted) ScaffoldMessenger.of(sheetCtx).showSnackBar(SnackBar(content: Text(error.toString())));
                   }
-                  Navigator.pop(sheetCtx);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Contributed \$${added.toStringAsFixed(2)} to ${goal.name}!'),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
                 },
                 style: FilledButton.styleFrom(
                   backgroundColor: isDark ? AppColors.primaryLight : AppColors.primary,
@@ -109,7 +105,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
   void _openCreateGoalSheet() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final nameCtrl = TextEditingController();
-    final targetCtrl = TextEditingController(text: '2500.00');
+    final targetCtrl = TextEditingController(text: '0.00');
 
     showModalBottomSheet<void>(
       context: context,
@@ -159,8 +155,8 @@ class _GoalsScreenState extends State<GoalsScreen> {
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
               style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700),
               decoration: InputDecoration(
-                labelText: 'Target Amount (USD)',
-                prefixText: '\$ ',
+                labelText: 'Target Amount (${FinanceState.primaryCurrency})',
+                prefixText: '${CurrencyService.getSymbol(FinanceState.primaryCurrency)} ',
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
               ),
             ),
@@ -169,32 +165,28 @@ class _GoalsScreenState extends State<GoalsScreen> {
               width: double.infinity,
               height: 48,
               child: FilledButton(
-                onPressed: () {
-                  final target = double.tryParse(targetCtrl.text) ?? 1000.0;
-                  final name = nameCtrl.text.trim().isNotEmpty
-                      ? nameCtrl.text.trim()
-                      : 'New Goal';
-                  setState(() {
-                    MockData.goals.add(
-                      Goal(
-                        id: 'g_${DateTime.now().millisecondsSinceEpoch}',
-                        name: name,
-                        emoji: '🎯',
-                        target: target,
-                        saved: 0.0,
-                        deadline: DateTime.now().add(const Duration(days: 120)),
-                        color: AppColors.primary,
-                        backgroundColor: AppColors.primary.withOpacity(0.1),
-                      ),
-                    );
-                  });
-                  Navigator.pop(sheetCtx);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Created goal: $name'),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
+                onPressed: () async {
+                  final target = double.tryParse(targetCtrl.text) ?? 0;
+                  final name = nameCtrl.text.trim();
+                  if (target <= 0 || name.isEmpty) {
+                    ScaffoldMessenger.of(sheetCtx).showSnackBar(const SnackBar(content: Text('Enter a goal name and target above zero.')));
+                    return;
+                  }
+                  try {
+                    await FinanceApi.instance.createGoal({
+                      'name': name,
+                      'emoji': '🎯',
+                      'target_amount': target.toStringAsFixed(2),
+                      'currency': FinanceState.primaryCurrency,
+                      'target_date': DateTime.now().add(const Duration(days: 120)).toIso8601String().split('T').first,
+                    });
+                    await FinanceApi.instance.refresh();
+                    if (!mounted || !sheetCtx.mounted) return;
+                    setState(() {});
+                    Navigator.pop(sheetCtx);
+                  } catch (error) {
+                    if (sheetCtx.mounted) ScaffoldMessenger.of(sheetCtx).showSnackBar(SnackBar(content: Text(error.toString())));
+                  }
                 },
                 style: FilledButton.styleFrom(
                   backgroundColor: isDark ? AppColors.primaryLight : AppColors.primary,
@@ -212,9 +204,9 @@ class _GoalsScreenState extends State<GoalsScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final totalTarget = MockData.goals.fold<double>(0, (s, g) => s + g.target);
-    final totalSaved = MockData.goals.fold<double>(0, (s, g) => s + g.saved);
-    final overallProgress = (totalSaved / totalTarget).clamp(0.0, 1.0);
+    final totalTarget = FinanceState.goals.fold<double>(0, (s, g) => s + CurrencyService.convert(g.target, g.currency, FinanceState.primaryCurrency));
+    final totalSaved = FinanceState.goals.fold<double>(0, (s, g) => s + CurrencyService.convert(g.saved, g.currency, FinanceState.primaryCurrency));
+    final overallProgress = totalTarget <= 0 ? 0.0 : (totalSaved / totalTarget).clamp(0.0, 1.0);
 
     return Scaffold(
       backgroundColor: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
@@ -291,7 +283,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
                         textBaseline: TextBaseline.alphabetic,
                         children: [
                           Text(
-                            '\$${Formatters.amount(totalSaved)}',
+                            '${CurrencyService.getSymbol(FinanceState.primaryCurrency)}${Formatters.amount(totalSaved)}',
                             style: GoogleFonts.inter(
                               fontSize: 26,
                               fontWeight: FontWeight.w700,
@@ -301,7 +293,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
                           ),
                           const SizedBox(width: 8),
                           Text(
-                            'of \$${Formatters.amount(totalTarget)} target',
+                            'of ${CurrencyService.getSymbol(FinanceState.primaryCurrency)}${Formatters.amount(totalTarget)} target',
                             style: GoogleFonts.inter(
                               fontSize: 13,
                               color: isDark ? AppColors.textTertiaryDark : AppColors.textSecondaryLight,
@@ -333,7 +325,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
               sliver: SliverList(
                 delegate: SliverChildBuilderDelegate(
                   (context, index) {
-                    final goal = MockData.goals[index];
+                    final goal = FinanceState.goals[index];
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 14),
                       child: GoalCard(
@@ -342,7 +334,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
                       ),
                     );
                   },
-                  childCount: MockData.goals.length,
+                  childCount: FinanceState.goals.length,
                 ),
               ),
             ),

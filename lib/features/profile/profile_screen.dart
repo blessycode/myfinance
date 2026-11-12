@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import '../../core/services/api_client.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/brand/app_brand.dart';
-import '../../core/data/mock_data.dart';
+import '../../core/data/finance_state.dart';
 import '../../core/models/models.dart';
 import '../../core/services/currency_service.dart';
+import '../../core/services/finance_api.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/formatters.dart';
 import '../../widgets/settings_tile.dart';
@@ -26,21 +28,47 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  String _selectedCurrency = MockData.primaryCurrency;
-  bool _biometricsEnabled = true;
+  String _selectedCurrency = FinanceState.primaryCurrency;
+  bool _biometricsEnabled = false;
   bool _budgetAlerts = true;
   bool _billReminders = true;
   bool _weeklySummary = true;
 
+  @override
+  void initState() {
+    super.initState();
+    final prefs = FinanceState.profile['notification_preferences'];
+    if (prefs is Map) {
+      _budgetAlerts = prefs['budget_alerts'] == true;
+      _billReminders = prefs['bill_reminders'] == true;
+      _weeklySummary = prefs['weekly_summary'] == true;
+    }
+    final security = FinanceState.profile['security_preferences'];
+    if (security is Map) _biometricsEnabled = security['biometric_enabled'] == true;
+  }
+
+  String get _fullName => [FinanceState.profile['first_name'], FinanceState.profile['last_name']]
+      .where((value) => value != null && value.toString().trim().isNotEmpty)
+      .join(' ');
+
+  Future<void> _saveProfile(Map<String, dynamic> changes) async {
+    final result = await FinanceApi.instance.updateProfile(changes);
+    FinanceState.profile = result;
+    if (mounted) widget.onDataChanged?.call();
+  }
+
+  Future<void> _savePreference(String section, String key, bool value) async {
+    final preferences = Map<String, dynamic>.from(
+      (FinanceState.profile[section] as Map?) ?? const <String, dynamic>{},
+    );
+    preferences[key] = value;
+    await _saveProfile({section: preferences});
+  }
+
   void _openCurrencyPicker() async {
-    const currencies = [
-      ('USD', 'United States Dollar (\$) - Base', '🇺🇸'),
-      ('EUR', 'Euro (€) - 1.09 USD', '🇪🇺'),
-      ('GBP', 'British Pound (£) - 1.28 USD', '🇬🇧'),
-      ('ZAR', 'South African Rand (R) - 0.055 USD', '🇿🇦'),
-      ('ZWG', 'Zimbabwe Gold (ZiG) - 0.038 USD', '🇿🇼'),
-      ('BWP', 'Botswana Pula (P) - 0.074 USD', '🇧🇼'),
-    ];
+    final currencies = CurrencyService.rates.values
+        .map((rate) => (rate.code, '${rate.name} (${rate.symbol})', ''))
+        .toList();
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -114,17 +142,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
 
     if (selected != null) {
-      setState(() {
-        _selectedCurrency = selected;
-        MockData.primaryCurrency = selected;
-      });
-      widget.onDataChanged?.call();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Primary currency updated to $selected. Portfolio converted.'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      try {
+        await _saveProfile({'preferred_currency': selected});
+        if (!mounted) return;
+        setState(() {
+          _selectedCurrency = selected;
+          FinanceState.primaryCurrency = selected;
+        });
+      } catch (error) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
+      }
     }
   }
 
@@ -165,7 +192,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 ),
                               ),
                               Text(
-                                '${MockData.accounts.length} multi-currency accounts active',
+                                '${FinanceState.accounts.length} multi-currency accounts active',
                                 style: GoogleFonts.inter(
                                   fontSize: 12,
                                   color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
@@ -189,7 +216,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ],
                     ),
                     const SizedBox(height: 14),
-                    ...MockData.accounts.map((acc) {
+                    ...FinanceState.accounts.map((acc) {
                       final sym = CurrencyService.getSymbol(acc.currency);
                       return ListTile(
                         contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
@@ -207,7 +234,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           style: GoogleFonts.inter(fontSize: 13.5, fontWeight: FontWeight.w600),
                         ),
                         subtitle: Text(
-                          '${acc.type} · ${acc.currency}',
+                          '${acc.type} Â· ${acc.currency}',
                           style: GoogleFonts.inter(fontSize: 11.5, color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight),
                         ),
                         trailing: Text(
@@ -233,12 +260,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void _openAddAccountDialog() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final nameCtrl = TextEditingController();
-    final balanceCtrl = TextEditingController(text: '1000.00');
+    final balanceCtrl = TextEditingController(text: '0.00');
     String selectedType = 'Bank Account';
-    String selectedCurrency = 'USD';
+    String selectedCurrency = FinanceState.primaryCurrency;
 
     final types = ['Bank Account', 'Savings', 'Cash Wallet', 'Mobile Money', 'Investment', 'Credit Card'];
-    final currencies = ['USD', 'EUR', 'GBP', 'ZAR', 'ZWG', 'BWP'];
+    final currencies = CurrencyService.rates.keys.toList();
 
     showModalBottomSheet<void>(
       context: context,
@@ -357,7 +384,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     width: double.infinity,
                     height: 48,
                     child: FilledButton(
-                      onPressed: () {
+                      onPressed: () async {
                         final balance = double.tryParse(balanceCtrl.text) ?? 0.0;
                         final name = nameCtrl.text.trim().isNotEmpty
                             ? nameCtrl.text.trim()
@@ -382,27 +409,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           color = const Color(0xFF14B8A6);
                         }
 
-                        setState(() {
-                          MockData.accounts.add(
-                            AccountSummary(
-                              id: 'acc_${DateTime.now().millisecondsSinceEpoch}',
-                              name: name,
-                              type: selectedType,
-                              currency: selectedCurrency,
-                              balance: balance,
-                              icon: icon,
-                              color: color,
-                            ),
+                        try {
+                          await FinanceApi.instance.addAccount(
+                            name: name,
+                            accountType: selectedType,
+                            currency: selectedCurrency,
+                            openingBalance: balance,
+                            color: '#${color.value.toRadixString(16).substring(2)}',
+                            icon: 'account_balance_rounded',
                           );
-                        });
-                        widget.onDataChanged?.call();
-                        Navigator.pop(sheetCtx);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('Added $name (${CurrencyService.format(balance, selectedCurrency)})'),
-                            behavior: SnackBarBehavior.floating,
-                          ),
-                        );
+                          if (!mounted || !sheetCtx.mounted) return;
+                          widget.onDataChanged?.call();
+                          Navigator.pop(sheetCtx);
+                        } catch (error) {
+                          if (sheetCtx.mounted) ScaffoldMessenger.of(sheetCtx).showSnackBar(SnackBar(content: Text(error.toString())));
+                        }
                       },
                       style: FilledButton.styleFrom(
                         backgroundColor: AppColors.primary,
@@ -444,7 +465,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               const SizedBox(height: 6),
               Text(
-                'You will return to the welcome screen. Your locally stored demonstration data will be preserved.',
+                'You will return to the welcome screen. Your financial records remain saved to your account.',
                 style: GoogleFonts.inter(
                   fontSize: 13,
                   color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
@@ -466,8 +487,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: FilledButton(
-                      onPressed: () {
+                      onPressed: () async {
                         Navigator.pop(sheetCtx);
+                        await ApiClient.instance.logout();
                         Navigator.of(context).pushAndRemoveUntil(
                           MaterialPageRoute(builder: (_) => const LoginScreen()),
                           (route) => false,
@@ -510,7 +532,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final totalPortfolio = CurrencyService.calculateTotalIn(MockData.accounts, _selectedCurrency);
+    final displayName = _fullName.isNotEmpty
+        ? _fullName
+        : (FinanceState.profile['email']?.toString() ?? 'JIREH user');
+    final email = FinanceState.profile['email']?.toString() ?? '';
+    final phone = FinanceState.profile['phone_number']?.toString() ?? '';
+    final country = FinanceState.profile['country']?.toString() ?? '';
+    final totalPortfolio = double.tryParse(FinanceState.dashboard['total_balance']?.toString() ?? '') ?? 0;
 
     return Scaffold(
       backgroundColor: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
@@ -575,7 +603,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             Row(
                               children: [
                                 Text(
-                                  'Alex Johnson',
+                                  displayName,
                                   style: GoogleFonts.inter(
                                     fontSize: 16,
                                     fontWeight: FontWeight.w700,
@@ -584,7 +612,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 ),
                                 const SizedBox(width: 6),
                                 const Icon(
-                                  Icons.verified_rounded,
+                                  Icons.person_rounded,
                                   size: 16,
                                   color: AppColors.income,
                                 ),
@@ -592,7 +620,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              'alex.johnson@email.com',
+                              email,
                               style: GoogleFonts.inter(
                                 fontSize: 12,
                                 color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
@@ -608,7 +636,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
-                          'PRO PLAN',
+                          'ACCOUNT',
                           style: GoogleFonts.inter(
                             fontSize: 9.5,
                             fontWeight: FontWeight.w700,
@@ -641,7 +669,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     children: [
                       _buildStatColumn('Total Portfolio', '${CurrencyService.getSymbol(_selectedCurrency)}${Formatters.amount(totalPortfolio)}', isDark),
                       Container(width: 1, height: 28, color: isDark ? AppColors.borderDark : const Color(0xFFD6DED3)),
-                      _buildStatColumn('Accounts', '${MockData.accounts.length} Linked', isDark),
+                      _buildStatColumn('Accounts', '${FinanceState.accounts.length} Linked', isDark),
                       Container(width: 1, height: 28, color: isDark ? AppColors.borderDark : const Color(0xFFD6DED3)),
                       _buildStatColumn('Health Score', '85 / 100', isDark),
                     ],
@@ -660,23 +688,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     SettingsTile(
                       icon: Icons.person_outline_rounded,
                       title: 'Personal Details',
-                      subtitle: 'Alex Johnson · +1 (555) 019-2834',
+                      subtitle: phone.isEmpty ? email : '$displayName · $phone',
                       onTap: () => _showInfoDialog(
                         'Personal Information',
-                        'Name: Alex Johnson\nEmail: alex.johnson@email.com\nPhone: +1 (555) 019-2834\nRegion: United States (USD)\nKYC Status: Verified (Level 2)',
+                        'Name: $displayName\nEmail: $email\nPhone: $phone\nCountry: $country\nCurrency: $_selectedCurrency',
                       ),
                     ),
                     SettingsTile(
                       icon: Icons.currency_exchange_rounded,
                       title: 'Primary Display Currency',
-                      subtitle: 'Active base: $_selectedCurrency · Live conversion enabled',
+                      subtitle: 'Active base: $_selectedCurrency Â· Live conversion enabled',
                       trailingText: _selectedCurrency,
                       onTap: _openCurrencyPicker,
                     ),
                     SettingsTile(
                       icon: Icons.account_balance_outlined,
                       title: 'Connected Accounts',
-                      subtitle: '${MockData.accounts.length} accounts configured',
+                      subtitle: '${FinanceState.accounts.length} accounts configured',
                       trailingText: '+ Add / Manage',
                       onTap: _openAccountsSheet,
                     ),
@@ -699,7 +727,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       trailing: Switch.adaptive(
                         value: _biometricsEnabled,
                         activeColor: AppColors.primary,
-                        onChanged: (v) => setState(() => _biometricsEnabled = v),
+                        onChanged: (v) async {
+                          setState(() => _biometricsEnabled = v);
+                          try {
+                            await _savePreference('security_preferences', 'biometric_enabled', v);
+                          } catch (error) {
+                            if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
+                          }
+                        },
                       ),
                     ),
                     SettingsTile(
@@ -714,8 +749,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     SettingsTile(
                       icon: Icons.devices_rounded,
                       title: 'Active Sessions',
-                      subtitle: '1 active mobile device (This Device)',
-                      onTap: () => _showInfoDialog('Active Sessions', 'This Device: Active Now\nLocation: Local Sandbox Environment'),
+                      subtitle: 'Session managed by secure sign-in',
+                      onTap: () => _showInfoDialog('Active Session', 'Your sign-in session is stored securely on this device.'),
                     ),
                   ],
                 ),
@@ -736,7 +771,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       trailing: Switch.adaptive(
                         value: _budgetAlerts,
                         activeColor: AppColors.primary,
-                        onChanged: (v) => setState(() => _budgetAlerts = v),
+                        onChanged: (v) async {
+                          setState(() => _budgetAlerts = v);
+                          try {
+                            await _savePreference('notification_preferences', 'budget_alerts', v);
+                          } catch (error) {
+                            if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
+                          }
+                        },
                       ),
                     ),
                     SettingsTile(
@@ -746,7 +788,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       trailing: Switch.adaptive(
                         value: _billReminders,
                         activeColor: AppColors.primary,
-                        onChanged: (v) => setState(() => _billReminders = v),
+                        onChanged: (v) async {
+                          setState(() => _billReminders = v);
+                          try {
+                            await _savePreference('notification_preferences', 'bill_reminders', v);
+                          } catch (error) {
+                            if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
+                          }
+                        },
                       ),
                     ),
                     SettingsTile(
@@ -756,7 +805,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       trailing: Switch.adaptive(
                         value: _weeklySummary,
                         activeColor: AppColors.primary,
-                        onChanged: (v) => setState(() => _weeklySummary = v),
+                        onChanged: (v) async {
+                          setState(() => _weeklySummary = v);
+                          try {
+                            await _savePreference('notification_preferences', 'weekly_summary', v);
+                          } catch (error) {
+                            if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
+                          }
+                        },
                       ),
                     ),
                   ],
@@ -799,7 +855,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       subtitle: 'Multi-currency rates and account linking guide',
                       onTap: () => _showInfoDialog(
                         'Help & Support',
-                        'Multi-Currency Support:\nAccounts can be maintained in USD, EUR, GBP, ZAR, ZiG, and BWP. Currency conversions use real-time market peg rates.\n\nSupport Email: support@myfinance.app',
+                        'Supported currencies: ${CurrencyService.rates.keys.join(', ')}. Currency conversions use exchange rates configured by the service.\n\nSupport Email: support@myfinance.app',
                       ),
                     ),
                     SettingsTile(
@@ -840,7 +896,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 padding: const EdgeInsets.only(bottom: 24),
                 child: Center(
                   child: Text(
-                    '${AppBrand.name.toUpperCase()} · V1.0.0 (BUILD 102)',
+                    '${AppBrand.name.toUpperCase()} Â· V1.0.0 (BUILD 102)',
                     style: GoogleFonts.inter(
                       fontSize: 10.5,
                       fontWeight: FontWeight.w600,

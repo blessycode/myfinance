@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../core/theme/app_colors.dart';
+import '../core/services/currency_service.dart';
 import '../core/utils/formatters.dart';
 
 class FinancialBalanceCard extends StatelessWidget {
@@ -20,7 +21,7 @@ class FinancialBalanceCard extends StatelessWidget {
     required this.monthlyExpense,
     required this.monthlySavings,
     this.currency = 'USD',
-    this.percentageChange = '+8.2%',
+    this.percentageChange = '',
     required this.isBalanceVisible,
     required this.onToggleVisibility,
   });
@@ -133,7 +134,9 @@ class FinancialBalanceCard extends StatelessWidget {
                   textBaseline: TextBaseline.alphabetic,
                   children: [
                     Text(
-                      isBalanceVisible ? '\$${Formatters.amount(totalBalance)}' : '••••••••',
+                      isBalanceVisible
+                          ? '${CurrencyService.getSymbol(currency)}${Formatters.amount(totalBalance)}'
+                          : '••••••••',
                       style: GoogleFonts.inter(
                         fontSize: 34,
                         fontWeight: FontWeight.w700,
@@ -238,7 +241,9 @@ class FinancialBalanceCard extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         Text(
-          isBalanceVisible ? '$prefix\$${Formatters.amount(amount)}' : '••••',
+          isBalanceVisible
+              ? '$prefix${CurrencyService.getSymbol(currency)}${Formatters.amount(amount)}'
+              : '••••',
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: GoogleFonts.inter(

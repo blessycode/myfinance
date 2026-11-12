@@ -1,11 +1,11 @@
 {
-    "name": "myfinance",
-    "short_name": "myfinance",
+    "name": "JIREH",
+    "short_name": "JIREH",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#FFFFFF",
+    "theme_color": "#059669",
+    "description": "JIREH personal finance and money management.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
