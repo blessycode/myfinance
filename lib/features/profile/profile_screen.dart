@@ -6,6 +6,7 @@ import '../../core/data/finance_state.dart';
 import '../../core/models/models.dart';
 import '../../core/services/currency_service.dart';
 import '../../core/services/finance_api.dart';
+import '../../core/services/google_auth_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/formatters.dart';
 import '../../widgets/settings_tile.dart';
@@ -234,7 +235,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           style: GoogleFonts.inter(fontSize: 13.5, fontWeight: FontWeight.w600),
                         ),
                         subtitle: Text(
-                          '${acc.type} Â· ${acc.currency}',
+                          '${acc.type} | ${acc.currency}',
                           style: GoogleFonts.inter(fontSize: 11.5, color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight),
                         ),
                         trailing: Text(
@@ -490,6 +491,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       onPressed: () async {
                         Navigator.pop(sheetCtx);
                         await ApiClient.instance.logout();
+                        try {
+                          await GoogleAuthService.instance.signOut();
+                        } catch (_) {
+                          // The JIREH session has already been cleared locally.
+                        }
                         Navigator.of(context).pushAndRemoveUntil(
                           MaterialPageRoute(builder: (_) => const LoginScreen()),
                           (route) => false,
@@ -532,9 +538,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final displayName = _fullName.isNotEmpty
+    final rawDisplayName = _fullName.isNotEmpty
         ? _fullName
         : (FinanceState.profile['email']?.toString() ?? 'JIREH user');
+    final displayName = rawDisplayName.trim().isEmpty ? 'JIREH user' : rawDisplayName;
+    final initialsParts = displayName.trim().split(RegExp(r'\s+')).where((part) => part.isNotEmpty).toList();
+    final initials = initialsParts.length > 1
+        ? '${initialsParts.first[0]}${initialsParts.last[0]}'.toUpperCase()
+        : initialsParts.first.substring(0, initialsParts.first.length > 1 ? 2 : 1).toUpperCase();
     final email = FinanceState.profile['email']?.toString() ?? '';
     final phone = FinanceState.profile['phone_number']?.toString() ?? '';
     final country = FinanceState.profile['country']?.toString() ?? '';
@@ -587,7 +598,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         radius: 28,
                         backgroundColor: isDark ? AppColors.primary : AppColors.primary,
                         child: Text(
-                          'AJ',
+                          initials,
                           style: GoogleFonts.inter(
                             fontSize: 17,
                             fontWeight: FontWeight.w700,
@@ -609,12 +620,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     fontWeight: FontWeight.w700,
                                     color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
                                   ),
-                                ),
-                                const SizedBox(width: 6),
-                                const Icon(
-                                  Icons.person_rounded,
-                                  size: 16,
-                                  color: AppColors.income,
                                 ),
                               ],
                             ),
@@ -697,7 +702,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     SettingsTile(
                       icon: Icons.currency_exchange_rounded,
                       title: 'Primary Display Currency',
-                      subtitle: 'Active base: $_selectedCurrency Â· Live conversion enabled',
+                      subtitle: 'Active currency: $_selectedCurrency. Live conversion is on.',
                       trailingText: _selectedCurrency,
                       onTap: _openCurrencyPicker,
                     ),
@@ -896,7 +901,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 padding: const EdgeInsets.only(bottom: 24),
                 child: Center(
                   child: Text(
-                    '${AppBrand.name.toUpperCase()} Â· V1.0.0 (BUILD 102)',
+                    '${AppBrand.name.toUpperCase()} | V1.0.0 (BUILD 102)',
                     style: GoogleFonts.inter(
                       fontSize: 10.5,
                       fontWeight: FontWeight.w600,

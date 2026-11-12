@@ -4,9 +4,10 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 
 class ApiException implements Exception {
-  const ApiException(this.message);
+  const ApiException(this.message, {this.statusCode});
 
   final String message;
+  final int? statusCode;
 
   @override
   String toString() => message;
@@ -93,7 +94,7 @@ class ApiClient {
     }
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw ApiException(_errorMessage(decoded, response.statusCode));
+      throw ApiException(_errorMessage(decoded, response.statusCode), statusCode: response.statusCode);
     }
     if (decoded is! Map<String, dynamic>) {
       if (decoded is List<dynamic>) return decoded;
@@ -140,9 +141,13 @@ class ApiClient {
         await _storage.write(key: 'refresh_token', value: rotatedRefresh);
       }
       return true;
-    } on ApiException {
-      await clearTokens();
-      return false;
+    } on ApiException catch (error) {
+      if (error.statusCode == 400 || error.statusCode == 401) {
+        await clearTokens();
+        return false;
+      }
+      // Keep the local session when the server is temporarily unavailable.
+      return true;
     } catch (_) {
       // Keep the saved session if the API is temporarily unreachable.
       return true;

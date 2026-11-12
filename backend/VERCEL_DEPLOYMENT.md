@@ -14,6 +14,7 @@ Set these in Vercel under **Project → Settings → Environment Variables** for
 | `DATABASE_URL` | Neon PostgreSQL connection string; use Neon’s pooled URL and keep it secret |
 | `REDIS_URL` | Optional managed Redis connection URL. When omitted, Django stores cache entries in the Neon database. |
 | `DJANGO_DEBUG` | `False` |
+| `GOOGLE_CLIENT_ID` | Google OAuth **Web application** client ID; needed for Google sign-in |
 
 Registration and password-reset emails use SMTP. Set `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `EMAIL_USE_TLS`, and a verified `SUPPORT_EMAIL` before relying on email verification or password recovery. Email send failures are suppressed by the current account service.
 

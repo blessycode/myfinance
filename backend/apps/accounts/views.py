@@ -3,12 +3,17 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenRefreshView as BaseTokenRefreshView
 from drf_spectacular.utils import extend_schema, OpenApiResponse
+from django.conf import settings
+from google.auth.exceptions import GoogleAuthError
+from google.auth.transport import requests as google_requests
+from google.oauth2 import id_token
 
 from .models import User
 from .serializers import (
     UserSerializer,
     RegisterSerializer,
     LoginSerializer,
+    GoogleLoginSerializer,
     PasswordResetRequestSerializer,
     PasswordResetConfirmSerializer,
     VerifyEmailSerializer,
@@ -58,6 +63,72 @@ class LoginView(views.APIView):
             'detail': 'Login successful',
             'tokens': tokens,
             'user': UserSerializer(user).data
+        }, status=status.HTTP_200_OK)
+
+class GoogleLoginView(views.APIView):
+    permission_classes = [permissions.AllowAny]
+
+    @extend_schema(
+        request=GoogleLoginSerializer,
+        responses={200: OpenApiResponse(description="Google account authenticated and API tokens returned")},
+        summary="Verify a Google ID token and issue JIREH API tokens",
+    )
+    def post(self, request):
+        if not settings.GOOGLE_CLIENT_ID:
+            return Response(
+                {'detail': 'Google sign-in is not configured on the server yet.'},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        serializer = GoogleLoginSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        raw_token = serializer.validated_data['id_token']
+
+        try:
+            claims = id_token.verify_oauth2_token(
+                raw_token,
+                google_requests.Request(),
+                audience=settings.GOOGLE_CLIENT_ID,
+            )
+        except (GoogleAuthError, ValueError):
+            return Response({'detail': 'Google could not verify this sign-in. Please try again.'}, status=status.HTTP_401_UNAUTHORIZED)
+
+        email = (claims.get('email') or '').strip().lower()
+        if not email or claims.get('email_verified') is not True:
+            return Response({'detail': 'Your Google account must have a verified email address.'}, status=status.HTTP_401_UNAUTHORIZED)
+
+        given_name = (claims.get('given_name') or '').strip()
+        family_name = (claims.get('family_name') or '').strip()
+        user, created = User.objects.get_or_create(
+            email=email,
+            defaults={
+                'first_name': given_name,
+                'last_name': family_name,
+                'is_verified': True,
+            },
+        )
+        if not user.is_active:
+            return Response({'detail': 'This account is disabled.'}, status=status.HTTP_403_FORBIDDEN)
+
+        changed_fields = []
+        if not user.is_verified:
+            user.is_verified = True
+            changed_fields.append('is_verified')
+        if not user.first_name and given_name:
+            user.first_name = given_name
+            changed_fields.append('first_name')
+        if not user.last_name and family_name:
+            user.last_name = family_name
+            changed_fields.append('last_name')
+        if changed_fields:
+            user.save(update_fields=changed_fields)
+
+        tokens = AccountAuthService.generate_tokens_for_user(user)
+        return Response({
+            'detail': 'Google sign-in successful',
+            'tokens': tokens,
+            'user': UserSerializer(user).data,
+            'created': created,
         }, status=status.HTTP_200_OK)
 
 class TokenRefreshView(BaseTokenRefreshView):

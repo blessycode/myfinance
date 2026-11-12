@@ -14,7 +14,36 @@ class NotificationsScreen extends StatefulWidget {
 }
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
-  late final List<_NoticeItem> _notices = FinanceState.notifications.map(_noticeFromApi).toList();
+  List<_NoticeItem> _notices = [];
+  bool _isLoading = true;
+  String? _loadError;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadNotifications();
+  }
+
+  Future<void> _loadNotifications() async {
+    setState(() {
+      _isLoading = true;
+      _loadError = null;
+    });
+    try {
+      await FinanceApi.instance.refreshNotifications();
+      if (!mounted) return;
+      setState(() {
+        _notices = FinanceState.notifications.map(_noticeFromApi).toList();
+        _isLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _loadError = 'Could not load notifications. Check your connection and try again.';
+      });
+    }
+  }
 
   _NoticeItem _noticeFromApi(Map<String, dynamic> row) {
     final type = (row['notification_type'] ?? 'system').toString();
@@ -46,6 +75,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       await FinanceApi.instance.markAllNotificationsRead();
       setState(() {
         for (final notice in _notices) { notice.isUnread = false; }
+        for (final row in FinanceState.notifications) { row['is_read'] = true; }
       });
     } catch (error) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
@@ -85,7 +115,23 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
             // Notification List
             Expanded(
-              child: _notices.isEmpty
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _loadError != null
+                      ? Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(28),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(_loadError!, textAlign: TextAlign.center),
+                                const SizedBox(height: 12),
+                                TextButton(onPressed: _loadNotifications, child: const Text('Try again')),
+                              ],
+                            ),
+                          ),
+                        )
+                  : _notices.isEmpty
                   ? const EmptyState(
                       icon: Icons.notifications_none_rounded,
                       title: 'No notifications yet',
@@ -104,7 +150,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                         if (notice.isUnread) {
                           try {
                             await FinanceApi.instance.markNotificationRead(notice.id);
-                            if (mounted) setState(() => notice.isUnread = false);
+                            if (mounted) {
+                              setState(() => notice.isUnread = false);
+                              for (final row in FinanceState.notifications) {
+                                if (row['id'].toString() == notice.id) row['is_read'] = true;
+                              }
+                            }
                           } catch (error) {
                             if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
                           }

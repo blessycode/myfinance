@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/brand/app_brand.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/services/api_client.dart';
 import '../../core/services/finance_api.dart';
 import '../home/home_screen.dart';
+import '../auth/login_screen.dart';
 import '../onboarding/onboarding_screen.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -21,6 +23,11 @@ class _SplashScreenState extends State<SplashScreen> {
     super.initState();
     Future<void>(() async {
       final hasSession = await ApiClient.instance.restoreSession();
+      final preferences = await SharedPreferences.getInstance();
+      final hasSeenWelcome = preferences.getBool('welcome_pages_seen') ?? false;
+      if (!hasSeenWelcome) {
+        await preferences.setBool('welcome_pages_seen', true);
+      }
       if (hasSession) {
         try {
           await FinanceApi.instance.refresh();
@@ -34,7 +41,9 @@ class _SplashScreenState extends State<SplashScreen> {
         PageRouteBuilder<void>(
           pageBuilder: (_, __, ___) => hasSession
               ? const HomeScreen()
-              : const OnboardingScreen(),
+              : hasSeenWelcome
+                  ? const LoginScreen()
+                  : const OnboardingScreen(),
           transitionsBuilder: (_, animation, __, child) =>
               FadeTransition(opacity: animation, child: child),
           transitionDuration: const Duration(milliseconds: 400),

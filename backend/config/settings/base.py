@@ -31,6 +31,7 @@ ALLOWED_HOSTS = env.list('DJANGO_ALLOWED_HOSTS', default=['*'])
 APP_NAME = env('APP_NAME')
 APP_CODE = env('APP_CODE')
 SUPPORT_EMAIL = env('SUPPORT_EMAIL')
+GOOGLE_CLIENT_ID = env('GOOGLE_CLIENT_ID', default='').strip()
 
 DJANGO_APPS = [
     'django.contrib.admin',

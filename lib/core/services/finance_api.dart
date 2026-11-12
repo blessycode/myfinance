@@ -57,6 +57,10 @@ class FinanceApi {
     _loadCurrencyRates(currencyRows, exchangeRows);
   }
 
+  Future<void> refreshNotifications() async {
+    FinanceState.notifications = await _getRows('notifications/');
+  }
+
   Future<Map<String, dynamic>> createAccount(Map<String, dynamic> data) async =>
       _api.post('accounts/', body: data, authenticated: true);
 

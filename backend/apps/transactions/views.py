@@ -15,6 +15,7 @@ from .serializers import (
 )
 from .services import TransactionLedgerService
 from apps.exchange_rates.services import CurrencyConversionService
+from apps.notifications.models import Notification, NotificationType
 
 class TransactionListCreateView(generics.ListCreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -70,6 +71,17 @@ class TransactionListCreateView(generics.ListCreateAPIView):
             receipt_attachment=data.get('receipt_attachment'),
             idempotency_key=data.get('idempotency_key'),
         )
+
+        if trx.transaction_type != TransactionType.TRANSFER:
+            Notification.objects.get_or_create(
+                user=request.user,
+                title='Transaction recorded',
+                data={'transaction_id': str(trx.pk)},
+                defaults={
+                    'body': f"{trx.get_transaction_type_display()} of {trx.currency} {trx.amount} was added to {trx.account.name}.",
+                    'notification_type': NotificationType.SYSTEM,
+                },
+            )
 
         return Response(TransactionSerializer(trx).data, status=status.HTTP_201_CREATED)
 

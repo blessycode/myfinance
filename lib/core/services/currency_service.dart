@@ -19,6 +19,15 @@ class CurrencyRate {
 class CurrencyService {
   static Map<String, CurrencyRate> rates = {};
 
+  static const _currencyFlags = <String, String>{
+    'USD': '\u{1F1FA}\u{1F1F8}', // United States
+    'EUR': '\u{1F1EA}\u{1F1FA}', // European Union
+    'GBP': '\u{1F1EC}\u{1F1E7}', // United Kingdom
+    'ZAR': '\u{1F1FF}\u{1F1E6}', // South Africa
+    'ZWG': '\u{1F1FF}\u{1F1FC}', // Zimbabwe
+    'BWP': '\u{1F1E7}\u{1F1FC}', // Botswana
+  };
+
   static void loadFromApi(
     List<Map<String, dynamic>> currencies,
     List<Map<String, dynamic>> exchangeRates,
@@ -35,11 +44,12 @@ class CurrencyService {
     rates = {
       for (final row in currencies)
         if (row['code'] != null)
-          row['code'].toString(): CurrencyRate(
-            code: row['code'].toString(),
+          row['code'].toString().toUpperCase(): CurrencyRate(
+            code: row['code'].toString().toUpperCase(),
             symbol: (row['symbol'] ?? row['code']).toString(),
             name: (row['name'] ?? row['code']).toString(),
-            rateToUSD: rateToUsd[row['code'].toString()] ?? 0,
+            rateToUSD: rateToUsd[row['code'].toString().toUpperCase()] ?? 0,
+            flag: _currencyFlags[row['code'].toString().toUpperCase()] ?? '\u{1F30D}',
           ),
     };
   }

@@ -34,6 +34,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _refresh() => setState(() {});
 
+  Future<void> _openNotifications() async {
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+    );
+    if (mounted) _refresh();
+  }
+
   @override
   Widget build(BuildContext context) {
     final themeProvider = context.watch<ThemeProvider>();
@@ -45,12 +53,7 @@ class _HomeScreenState extends State<HomeScreen> {
         index: _navIndex,
         children: [
           _HomeTab(
-            onOpenNotifications: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const NotificationsScreen()),
-              );
-            },
+            onOpenNotifications: _openNotifications,
             onOpenProfile: () => setState(() => _navIndex = 4),
             onOpenAnalytics: () => setState(() => _navIndex = 1),
             onOpenBudgets: () => setState(() => _navIndex = 2),
@@ -970,7 +973,7 @@ class _HomeTabState extends State<_HomeTab> {
                   final isSelected = FinanceState.primaryCurrency == c;
                   return ListTile(
                     contentPadding: const EdgeInsets.symmetric(horizontal: 4),
-                    leading: Text(rate?.flag ?? 'ðŸŒ', style: const TextStyle(fontSize: 22)),
+                    leading: Text(rate?.flag ?? '\u{1F30D}', style: const TextStyle(fontSize: 22)),
                     title: Text('$c - ${rate?.name}', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
                     trailing: isSelected
                         ? const Icon(Icons.check_circle_rounded, color: AppColors.accent, size: 20)
@@ -1007,6 +1010,15 @@ class _HomeTabState extends State<_HomeTab> {
     final profileName = [FinanceState.profile['first_name'], FinanceState.profile['last_name']]
         .where((value) => value != null && value.toString().trim().isNotEmpty)
         .join(' ');
+    final avatarName = profileName.isNotEmpty
+        ? profileName
+        : (FinanceState.profile['email']?.toString() ?? 'JIREH');
+    final safeAvatarName = avatarName.trim().isEmpty ? 'JIREH' : avatarName.trim();
+    final avatarParts = safeAvatarName.split(RegExp(r'\s+')).where((part) => part.isNotEmpty).toList();
+    final avatarInitials = avatarParts.length > 1
+        ? '${avatarParts.first[0]}${avatarParts.last[0]}'.toUpperCase()
+        : avatarParts.first.substring(0, avatarParts.first.length > 1 ? 2 : 1).toUpperCase();
+    final unreadNotifications = FinanceState.notifications.where((row) => row['is_read'] != true).length;
     final holdings = <String, double>{};
     for (final account in FinanceState.accounts) {
       holdings.update(account.currency, (balance) => balance + account.balance, ifAbsent: () => account.balance);
@@ -1065,7 +1077,7 @@ class _HomeTabState extends State<_HomeTab> {
                     child: Row(
                       children: [
                         Text(
-                          CurrencyService.rates[primaryCurr]?.flag ?? 'ðŸŒ',
+                          CurrencyService.rates[primaryCurr]?.flag ?? '\u{1F30D}',
                           style: const TextStyle(fontSize: 14),
                         ),
                         const SizedBox(width: 5),
@@ -1088,7 +1100,7 @@ class _HomeTabState extends State<_HomeTab> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                // Notification Button with badge
+                // Notification button with unread badge
                 GestureDetector(
                   onTap: widget.onOpenNotifications,
                   child: Container(
@@ -1110,18 +1122,19 @@ class _HomeTabState extends State<_HomeTab> {
                             color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
                           ),
                         ),
-                        Positioned(
+                        if (unreadNotifications > 0)
+                          Positioned(
                           top: 9,
                           right: 9,
                           child: Container(
-                            width: 7,
-                            height: 7,
+                            width: 8,
+                            height: 8,
                             decoration: const BoxDecoration(
                               color: AppColors.expense,
                               shape: BoxShape.circle,
                             ),
                           ),
-                        ),
+                          ),
                       ],
                     ),
                   ),
@@ -1134,7 +1147,7 @@ class _HomeTabState extends State<_HomeTab> {
                     radius: 20,
                     backgroundColor: AppColors.primary,
                     child: Text(
-                      'AJ',
+                      avatarInitials,
                       style: GoogleFonts.inter(
                         fontSize: 12.5,
                         fontWeight: FontWeight.w700,
@@ -1571,7 +1584,7 @@ class _HomeTabState extends State<_HomeTab> {
   }
 
   Widget _buildCurrencyBadge(String code, String formatted, bool isDark) {
-    final flag = CurrencyService.rates[code]?.flag ?? 'ðŸŒ';
+    final flag = CurrencyService.rates[code]?.flag ?? '\u{1F30D}';
     final isSelected = FinanceState.primaryCurrency == code;
 
     return Container(

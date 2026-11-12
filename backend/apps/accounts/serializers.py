@@ -51,6 +51,9 @@ class LoginSerializer(serializers.Serializer):
         attrs['user'] = user
         return attrs
 
+class GoogleLoginSerializer(serializers.Serializer):
+    id_token = serializers.CharField()
+
 class PasswordResetRequestSerializer(serializers.Serializer):
     email = serializers.EmailField()
 

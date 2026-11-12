@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../core/brand/app_brand.dart';
 import '../../core/services/api_client.dart';
 import '../../core/services/finance_api.dart';
+import '../../core/services/google_auth_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../home/home_screen.dart';
 
@@ -68,6 +69,30 @@ class _LoginScreenState extends State<LoginScreen> {
       if (mounted) _showError(error.message);
     } catch (_) {
       if (mounted) _showError('Could not reach the server. Check your connection and API URL.');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _signInWithGoogle() async {
+    if (_isLoading) return;
+    setState(() => _isLoading = true);
+    try {
+      await GoogleAuthService.instance.signIn();
+      await FinanceApi.instance.refresh();
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        PageRouteBuilder<void>(
+          pageBuilder: (_, __, ___) => const HomeScreen(),
+          transitionsBuilder: (_, animation, __, child) =>
+              FadeTransition(opacity: animation, child: child),
+          transitionDuration: const Duration(milliseconds: 300),
+        ),
+      );
+    } on ApiException catch (error) {
+      if (mounted) _showError(error.message);
+    } catch (_) {
+      if (mounted) _showError('Google sign-in could not finish. Please try again.');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -366,6 +391,39 @@ class _LoginScreenState extends State<LoginScreen> {
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 14),
+
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: OutlinedButton(
+                        onPressed: _isLoading ? null : _signInWithGoogle,
+                        style: OutlinedButton.styleFrom(
+                          side: BorderSide(color: isDark ? AppColors.borderDark : AppColors.borderLight),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            ShaderMask(
+                              shaderCallback: (bounds) => const LinearGradient(
+                                colors: [Color(0xFF4285F4), Color(0xFF34A853), Color(0xFFFBBC05), Color(0xFFEA4335)],
+                              ).createShader(bounds),
+                              child: Text(
+                                'G',
+                                style: GoogleFonts.inter(fontSize: 21, fontWeight: FontWeight.w800, color: Colors.white),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Text(
+                              'Continue with Google',
+                              style: GoogleFonts.inter(fontSize: 13.5, fontWeight: FontWeight.w600),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
 
