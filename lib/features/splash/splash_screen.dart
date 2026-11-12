@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../core/services/device_security_service.dart';
 import '../../core/brand/app_brand.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/services/api_client.dart';
@@ -35,11 +36,16 @@ class _SplashScreenState extends State<SplashScreen> {
           // Keep the user signed in; screens show empty state and can retry.
         }
       }
+      final biometricEnabled = preferences.getBool('jireh_biometric_unlock') ?? false;
+      final unlocked = !hasSession || !biometricEnabled ||
+          await DeviceSecurityService.instance.authenticate(
+            reason: 'Unlock JIREH to view your finances',
+          );
       await Future<void>.delayed(const Duration(milliseconds: 1600));
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
         PageRouteBuilder<void>(
-          pageBuilder: (_, __, ___) => hasSession
+          pageBuilder: (_, __, ___) => hasSession && unlocked
               ? const HomeScreen()
               : hasSeenWelcome
                   ? const LoginScreen()

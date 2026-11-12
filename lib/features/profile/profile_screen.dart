@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import '../../core/services/api_client.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/brand/app_brand.dart';
 import '../../core/data/finance_state.dart';
 import '../../core/models/models.dart';
 import '../../core/services/currency_service.dart';
 import '../../core/services/finance_api.dart';
+import '../../core/services/device_security_service.dart';
 import '../../core/services/google_auth_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/formatters.dart';
@@ -34,6 +36,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _budgetAlerts = true;
   bool _billReminders = true;
   bool _weeklySummary = true;
+  String _deviceDescription = 'Reading device…';
 
   @override
   void initState() {
@@ -44,8 +47,53 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _billReminders = prefs['bill_reminders'] == true;
       _weeklySummary = prefs['weekly_summary'] == true;
     }
-    final security = FinanceState.profile['security_preferences'];
-    if (security is Map) _biometricsEnabled = security['biometric_enabled'] == true;
+    _loadDeviceSettings();
+  }
+
+  Future<void> _loadDeviceSettings() async {
+    final results = await Future.wait<Object>([
+      SharedPreferences.getInstance(),
+      DeviceSecurityService.instance.deviceDescription(),
+    ]);
+    if (!mounted) return;
+    final preferences = results[0] as SharedPreferences;
+    setState(() {
+      _biometricsEnabled = preferences.getBool('jireh_biometric_unlock') ?? false;
+      _deviceDescription = results[1] as String;
+    });
+  }
+
+  Future<void> _setBiometricUnlock(bool enabled) async {
+    final security = DeviceSecurityService.instance;
+    if (enabled) {
+      if (!await security.hasEnrolledBiometrics) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Set up Face ID or a fingerprint on your phone first.'),
+          ));
+        }
+        return;
+      }
+      final verified = await security.authenticate(
+        reason: 'Confirm your identity to turn on JIREH biometric unlock',
+      );
+      if (!verified) return;
+    }
+
+    final preferences = await SharedPreferences.getInstance();
+    setState(() => _biometricsEnabled = enabled);
+    await preferences.setBool('jireh_biometric_unlock', enabled);
+    try {
+      await _savePreference('security_preferences', 'biometric_enabled', enabled);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Biometric unlock is saved on this phone. Account sync failed.'),
+          ),
+        );
+      }
+    }
   }
 
   String get _fullName => [FinanceState.profile['first_name'], FinanceState.profile['last_name']]
@@ -732,15 +780,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       trailing: Switch.adaptive(
                         value: _biometricsEnabled,
                         activeColor: AppColors.primary,
-                        onChanged: (v) async {
-                          setState(() => _biometricsEnabled = v);
-                          try {
-                            await _savePreference('security_preferences', 'biometric_enabled', v);
-                          } catch (error) {
-                            if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
-                          }
-                        },
+                        onChanged: _setBiometricUnlock,
                       ),
+                    ),
+                    SettingsTile(
+                      icon: Icons.phone_android_rounded,
+                      title: 'This Device',
+                      subtitle: _deviceDescription,
                     ),
                     SettingsTile(
                       icon: Icons.lock_outline_rounded,

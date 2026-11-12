@@ -1,11 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ThemeProvider extends ChangeNotifier {
-  bool _isDark = false;
+  static const preferenceKey = 'jireh_theme_is_dark';
+  bool _isDark;
+
+  ThemeProvider({bool initialIsDark = false}) : _isDark = initialIsDark;
   bool get isDark => _isDark;
 
-  void toggle() {
-    _isDark = !_isDark;
+  Future<void> setDark(bool value) async {
+    if (_isDark == value) return;
+    _isDark = value;
     notifyListeners();
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setBool(preferenceKey, value);
+  }
+
+  void toggle() {
+    setDark(!_isDark);
   }
 }
