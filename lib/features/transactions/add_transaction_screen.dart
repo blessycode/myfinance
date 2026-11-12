@@ -23,6 +23,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   late TransactionType _type;
   String _amount = '0';
   String _selectedCategoryId = '';
+  String _selectedAccountId = '';
   String _selectedCurrency = FinanceState.primaryCurrency;
   final _merchantController = TextEditingController();
   final _notesController = TextEditingController();
@@ -30,17 +31,22 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   DateTime _selectedDate = DateTime.now();
   bool _isLoading = false;
 
-  List<String> get _currencies => CurrencyService.rates.keys.toList();
+  List<String> get _currencies {
+    for (final account in FinanceState.accounts) {
+      if (account.id == _selectedAccountId) return [account.currency];
+    }
+    return CurrencyService.rates.keys.toList();
+  }
 
   @override
   void initState() {
     super.initState();
     _type = widget.initialType;
-    final desiredType = _type == TransactionType.income ? 'income' : 'expense';
-    final availableCategories = FinanceState.categories
-        .where((category) => _isIncomeCategory(category) == (desiredType == 'income'))
-        .toList();
-    _selectedCategoryId = availableCategories.isEmpty ? '' : availableCategories.first.id;
+    _selectedAccountId = FinanceState.accounts.isEmpty ? '' : FinanceState.accounts.first.id;
+    if (FinanceState.accounts.isNotEmpty) {
+      _selectedCurrency = FinanceState.accounts.first.currency;
+    }
+    _selectedCategoryId = _defaultCategoryId(_type);
   }
 
   @override
@@ -91,9 +97,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       return;
     }
 
-    if (FinanceState.accounts.isEmpty || _selectedCategoryId.isEmpty) {
+    if (FinanceState.accounts.isEmpty || _selectedAccountId.isEmpty || _selectedCategoryId.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Add an account and category before recording a transaction.')),
+        const SnackBar(content: Text('Choose an account and category before recording a transaction.')),
       );
       return;
     }
@@ -103,7 +109,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
           ? _merchantController.text.trim()
           : (_type == TransactionType.income ? 'Income' : 'Expense');
       await FinanceApi.instance.createTransaction({
-        'account': FinanceState.accounts.first.id,
+        'account': _selectedAccountId,
         'transaction_type': _type == TransactionType.income ? 'income' : 'expense',
         'category': _selectedCategoryId,
         'amount': parsedAmount.toStringAsFixed(2),
@@ -147,6 +153,14 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
           category.name.toLowerCase() == 'investments' ||
           category.name.toLowerCase() == 'interest' ||
           category.name.toLowerCase() == 'gifts');
+
+  String _defaultCategoryId(TransactionType type) {
+    final isIncome = type == TransactionType.income;
+    for (final category in FinanceState.categories) {
+      if (_isIncomeCategory(category) == isIncome) return category.id;
+    }
+    return '';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -204,7 +218,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                           HapticFeedback.selectionClick();
                           setState(() {
                             _type = TransactionType.expense;
-                            if (_selectedCategoryId == 'income') _selectedCategoryId = 'food';
+                            _selectedCategoryId = _defaultCategoryId(TransactionType.expense);
                           });
                         },
                         child: AnimatedContainer(
@@ -254,7 +268,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                           HapticFeedback.selectionClick();
                           setState(() {
                             _type = TransactionType.income;
-                            _selectedCategoryId = 'income';
+                            _selectedCategoryId = _defaultCategoryId(TransactionType.income);
                           });
                         },
                         child: AnimatedContainer(
@@ -379,6 +393,50 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    Text(
+                      isExpense ? 'Pay from account' : 'Deposit into account',
+                      style: GoogleFonts.inter(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    DropdownButtonFormField<String>(
+                      value: FinanceState.accounts.any((account) => account.id == _selectedAccountId)
+                          ? _selectedAccountId
+                          : null,
+                      isExpanded: true,
+                      hint: Text(FinanceState.accounts.isEmpty ? 'Add an account first' : 'Choose an account'),
+                      decoration: InputDecoration(
+                        prefixIcon: const Icon(Icons.account_balance_wallet_outlined, size: 19),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(13)),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      ),
+                      items: FinanceState.accounts.map((account) {
+                        return DropdownMenuItem<String>(
+                          value: account.id,
+                          child: Text(
+                            '${account.name} (${account.currency})',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        );
+                      }).toList(),
+                      onChanged: (accountId) {
+                        if (accountId == null) return;
+                        final account = FinanceState.accounts.firstWhere((item) => item.id == accountId);
+                        setState(() {
+                          _selectedAccountId = accountId;
+                          if (CurrencyService.rates.containsKey(account.currency)) {
+                            _selectedCurrency = account.currency;
+                          }
+                        });
+                      },
+                    ),
+
+                    const SizedBox(height: 14),
+
                     // Category Selection Label
                     Text(
                       'Category',

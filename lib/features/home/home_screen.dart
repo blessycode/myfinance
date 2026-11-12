@@ -749,6 +749,79 @@ class _HomeTab extends StatefulWidget {
 class _HomeTabState extends State<_HomeTab> {
   bool _isBalanceVisible = true;
 
+  void _showAccountOptions(AccountSummary account) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 4, 24, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                account.name,
+                style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 4),
+              Text('${account.currency} ${Formatters.amount(account.balance)}'),
+              const SizedBox(height: 16),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.delete_outline_rounded, color: AppColors.expense),
+                title: const Text('Delete account'),
+                onTap: () async {
+                  Navigator.pop(sheetContext);
+                  final confirmed = await showDialog<bool>(
+                    context: context,
+                    builder: (dialogContext) => AlertDialog(
+                      title: const Text('Delete account?'),
+                      content: const Text(
+                        'The account will be removed. If it has transaction history, it will be archived so that history is kept.',
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(dialogContext, false),
+                          child: const Text('Cancel'),
+                        ),
+                        FilledButton(
+                          style: FilledButton.styleFrom(backgroundColor: AppColors.expense),
+                          onPressed: () => Navigator.pop(dialogContext, true),
+                          child: const Text('Delete'),
+                        ),
+                      ],
+                    ),
+                  );
+                  if (confirmed != true) return;
+                  try {
+                    await FinanceApi.instance.deleteAccount(account.id);
+                    if (!mounted) return;
+                    widget.onDataChanged();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Account removed. Its transaction history is kept if it had any.'),
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  } catch (error) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text(error.toString()), behavior: SnackBarBehavior.floating),
+                      );
+                    }
+                  }
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   String _getTimeGreeting() {
     final hour = DateTime.now().hour;
     if (hour < 12) return 'Good morning,';
@@ -1294,15 +1367,7 @@ class _HomeTabState extends State<_HomeTab> {
                       }
                       return AccountCard(
                         account: FinanceState.accounts[index],
-                        onTap: () {
-                          final acc = FinanceState.accounts[index];
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('${acc.name}: ${CurrencyService.format(acc.balance, acc.currency)}'),
-                              behavior: SnackBarBehavior.floating,
-                            ),
-                          );
-                        },
+                        onTap: () => _showAccountOptions(FinanceState.accounts[index]),
                       );
                     },
                   ),

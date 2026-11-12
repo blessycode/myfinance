@@ -64,6 +64,11 @@ class FinanceApi {
   Future<Map<String, dynamic>> createAccount(Map<String, dynamic> data) async =>
       _api.post('accounts/', body: data, authenticated: true);
 
+  Future<void> deleteAccount(String id) async {
+    await _api.delete('accounts/$id/');
+    await refresh();
+  }
+
   Future<void> addAccount({
     required String name,
     required String accountType,
