@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../core/data/mock_data.dart';
+import '../../core/data/finance_state.dart';
 import '../../core/models/models.dart';
 import '../../core/services/currency_service.dart';
+import '../../core/services/finance_api.dart';
 import '../../core/theme/app_colors.dart';
+import 'package:intl/intl.dart';
 
 class AddTransactionScreen extends StatefulWidget {
   final TransactionType initialType;
@@ -21,8 +23,8 @@ class AddTransactionScreen extends StatefulWidget {
 class _AddTransactionScreenState extends State<AddTransactionScreen> {
   late TransactionType _type;
   String _amount = '0';
-  String _selectedCategoryId = 'food';
-  String _selectedCurrency = MockData.primaryCurrency;
+  String _selectedCategoryId = '';
+  String _selectedCurrency = FinanceState.primaryCurrency;
   final _merchantController = TextEditingController();
   final _notesController = TextEditingController();
   PaymentMethod _paymentMethod = PaymentMethod.creditCard;
@@ -35,9 +37,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   void initState() {
     super.initState();
     _type = widget.initialType;
-    if (_type == TransactionType.income) {
-      _selectedCategoryId = 'income';
-    }
+    if (FinanceState.categories.isNotEmpty) _selectedCategoryId = FinanceState.categories.first.id;
   }
 
   @override
@@ -88,46 +88,45 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       return;
     }
 
-    setState(() => _isLoading = true);
-    await Future.delayed(const Duration(milliseconds: 400));
-
-    final sym = CurrencyService.getSymbol(_selectedCurrency);
-    final newTx = Transaction(
-      id: 'tx_${DateTime.now().millisecondsSinceEpoch}',
-      title: _merchantController.text.trim().isNotEmpty
-          ? _merchantController.text.trim()
-          : (_type == TransactionType.income
-                ? 'Income Deposit'
-                : 'Expense Payment'),
-      merchant: _merchantController.text.trim().isNotEmpty
-          ? _merchantController.text.trim()
-          : 'General',
-      amount: parsedAmount,
-      currency: _selectedCurrency,
-      type: _type,
-      categoryId: _selectedCategoryId,
-      date: _selectedDate,
-      paymentMethod: _paymentMethod,
-      notes: _notesController.text.trim().isNotEmpty
-          ? _notesController.text.trim()
-          : null,
-    );
-
-    MockData.transactions.insert(0, newTx);
-
-    if (!mounted) return;
-    setState(() => _isLoading = false);
-    HapticFeedback.mediumImpact();
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Recorded $sym${parsedAmount.toStringAsFixed(2)} ($_selectedCurrency) transaction',
-        ),
+    if (FinanceState.accounts.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Add an account before recording a transaction.'),
         behavior: SnackBarBehavior.floating,
-      ),
-    );
-    Navigator.pop(context);
+      ));
+      return;
+    }
+    setState(() => _isLoading = true);
+    final merchant = _merchantController.text.trim();
+    try {
+      await FinanceApi.instance.createTransaction({
+        'account': FinanceState.accounts.first.id,
+        'transaction_type': _type == TransactionType.income ? 'income' : 'expense',
+        'category': _selectedCategoryId.isEmpty ? null : _selectedCategoryId,
+        'amount': parsedAmount.toStringAsFixed(2),
+        'currency': _selectedCurrency,
+        'description': merchant.isEmpty ? (_type == TransactionType.income ? 'Income Deposit' : 'Expense Payment') : merchant,
+        'merchant': merchant,
+        'transaction_date': DateFormat('yyyy-MM-dd').format(_selectedDate),
+        'payment_method': _paymentMethod.name.replaceAllMapped(RegExp(r'[A-Z]'), (m) => '_${m[0]!.toLowerCase()}'),
+        'notes': _notesController.text.trim(),
+      });
+      await FinanceApi.instance.refresh();
+      if (!mounted) return;
+      HapticFeedback.mediumImpact();
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Recorded ${CurrencyService.getSymbol(_selectedCurrency)}${parsedAmount.toStringAsFixed(2)} ($_selectedCurrency) transaction'),
+        behavior: SnackBarBehavior.floating,
+      ));
+      Navigator.pop(context);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Could not save transaction: $error'),
+        behavior: SnackBarBehavior.floating,
+      ));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   @override
@@ -192,8 +191,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                           HapticFeedback.selectionClick();
                           setState(() {
                             _type = TransactionType.expense;
-                            if (_selectedCategoryId == 'income')
-                              _selectedCategoryId = 'food';
+                            _selectedCategoryId = FinanceState.categories.isEmpty ? '' : FinanceState.categories.first.id;
                           });
                         },
                         child: AnimatedContainer(
@@ -259,7 +257,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                           HapticFeedback.selectionClick();
                           setState(() {
                             _type = TransactionType.income;
-                            _selectedCategoryId = 'income';
+                            _selectedCategoryId = FinanceState.categories.isEmpty ? '' : FinanceState.categories.first.id;
                           });
                         },
                         child: AnimatedContainer(
@@ -432,10 +430,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                       height: 42,
                       child: ListView.separated(
                         scrollDirection: Axis.horizontal,
-                        itemCount: MockData.categories.length,
+                        itemCount: FinanceState.categories.length,
                         separatorBuilder: (_, __) => const SizedBox(width: 8),
                         itemBuilder: (context, index) {
-                          final cat = MockData.categories[index];
+                          final cat = FinanceState.categories[index];
                           final isSelected = _selectedCategoryId == cat.id;
                           return GestureDetector(
                             onTap: () {
