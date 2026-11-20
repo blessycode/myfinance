@@ -99,28 +99,38 @@ class FinancialBalanceCard extends StatelessWidget {
                         color: Colors.white.withOpacity(0.75),
                       ),
                     ),
-                    const Spacer(),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4.5),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: Colors.white.withOpacity(0.12)),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.trending_up_rounded, size: 14, color: AppColors.accentLight),
-                          const SizedBox(width: 4),
-                          Text(
-                            percentageChange,
-                            style: GoogleFonts.inter(
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.accentLight,
-                            ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        child: Container(
+                          constraints: const BoxConstraints(maxWidth: 150),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4.5),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: Colors.white.withOpacity(0.12)),
                           ),
-                        ],
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.trending_up_rounded, size: 14, color: AppColors.accentLight),
+                              const SizedBox(width: 4),
+                              Flexible(
+                                child: Text(
+                                  percentageChange,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: GoogleFonts.inter(
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.accentLight,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
                   ],
