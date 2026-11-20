@@ -118,7 +118,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
                     width: 38,
                     height: 38,
                     decoration: BoxDecoration(
-                      gradient: AppColors.emeraldCardGradient,
+                      gradient: AppColors.heroCardGradient,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: const Icon(
@@ -308,7 +308,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
                       width: 44,
                       height: 44,
                       decoration: BoxDecoration(
-                        gradient: AppColors.emeraldCardGradient,
+                        gradient: AppColors.heroCardGradient,
                         shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
@@ -351,7 +351,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
               height: 32,
               margin: const EdgeInsets.only(top: 2, right: 10),
               decoration: BoxDecoration(
-                gradient: AppColors.emeraldCardGradient,
+                gradient: AppColors.heroCardGradient,
                 borderRadius: BorderRadius.circular(10),
               ),
               child: const Icon(

@@ -58,7 +58,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (!mounted) return;
     final preferences = results[0] as SharedPreferences;
     setState(() {
-      _biometricsEnabled = preferences.getBool('jireh_biometric_unlock') ?? false;
+      _biometricsEnabled =
+          preferences.getBool('provida_biometric_unlock') ??
+          preferences.getBool('jireh_biometric_unlock') ??
+          false;
       _deviceDescription = results[1] as String;
     });
   }
@@ -66,39 +69,48 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _setBiometricUnlock(bool enabled) async {
     final security = DeviceSecurityService.instance;
     if (enabled) {
-      if (!await security.supportsDeviceUnlock) {
+      if (!await security.hasEnrolledBiometrics) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Set up a screen lock on your phone first.'),
-          ));
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Set up fingerprint or face recognition on your phone first.'),
+            ),
+          );
         }
         return;
       }
       final verified = await security.authenticate(
-        reason: 'Confirm your identity to turn on JIREH device unlock',
+        reason: 'Confirm your identity to turn on Provida device unlock',
       );
       if (!verified) return;
     }
 
     final preferences = await SharedPreferences.getInstance();
     setState(() => _biometricsEnabled = enabled);
-    await preferences.setBool('jireh_biometric_unlock', enabled);
+    await preferences.setBool('provida_biometric_unlock', enabled);
     try {
-      await _savePreference('security_preferences', 'biometric_enabled', enabled);
+      await _savePreference(
+        'security_preferences',
+        'biometric_enabled',
+        enabled,
+      );
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Biometric unlock is saved on this phone. Account sync failed.'),
+            content: Text(
+              'Biometric unlock is saved on this phone. Account sync failed.',
+            ),
           ),
         );
       }
     }
   }
 
-  String get _fullName => [FinanceState.profile['first_name'], FinanceState.profile['last_name']]
-      .where((value) => value != null && value.toString().trim().isNotEmpty)
-      .join(' ');
+  String get _fullName =>
+      [FinanceState.profile['first_name'], FinanceState.profile['last_name']]
+          .where((value) => value != null && value.toString().trim().isNotEmpty)
+          .join(' ');
 
   Future<void> _saveProfile(Map<String, dynamic> changes) async {
     final result = await FinanceApi.instance.updateProfile(changes);
@@ -144,7 +156,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     style: GoogleFonts.inter(
                       fontSize: 18,
                       fontWeight: FontWeight.w700,
-                      color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                      color: isDark
+                          ? AppColors.textPrimaryDark
+                          : AppColors.textPrimaryLight,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -152,32 +166,45 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     'All multi-currency accounts and transactions are converted in real-time to your primary view.',
                     style: GoogleFonts.inter(
                       fontSize: 12,
-                      color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                      color: isDark
+                          ? AppColors.textSecondaryDark
+                          : AppColors.textSecondaryLight,
                     ),
                   ),
                   const SizedBox(height: 14),
                   ...currencies.map((c) {
                     final isSelected = _selectedCurrency == c.$1;
                     return ListTile(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 2,
+                      ),
                       leading: Text(c.$3, style: const TextStyle(fontSize: 22)),
                       title: Text(
                         c.$1,
                         style: GoogleFonts.inter(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
-                          color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                          color: isDark
+                              ? AppColors.textPrimaryDark
+                              : AppColors.textPrimaryLight,
                         ),
                       ),
                       subtitle: Text(
                         c.$2,
                         style: GoogleFonts.inter(
                           fontSize: 11.5,
-                          color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                          color: isDark
+                              ? AppColors.textSecondaryDark
+                              : AppColors.textSecondaryLight,
                         ),
                       ),
                       trailing: isSelected
-                          ? const Icon(Icons.check_circle_rounded, color: AppColors.accent, size: 20)
+                          ? const Icon(
+                              Icons.check_circle_rounded,
+                              color: AppColors.accent,
+                              size: 20,
+                            )
                           : null,
                       onTap: () => Navigator.pop(ctx, c.$1),
                     );
@@ -199,7 +226,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
           FinanceState.primaryCurrency = selected;
         });
       } catch (error) {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
+        if (mounted)
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(error.toString())));
       }
     }
   }
@@ -237,14 +267,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 style: GoogleFonts.inter(
                                   fontSize: 18,
                                   fontWeight: FontWeight.w700,
-                                  color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                                  color: isDark
+                                      ? AppColors.textPrimaryDark
+                                      : AppColors.textPrimaryLight,
                                 ),
                               ),
                               Text(
                                 '${FinanceState.accounts.length} multi-currency accounts active',
                                 style: GoogleFonts.inter(
                                   fontSize: 12,
-                                  color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                                  color: isDark
+                                      ? AppColors.textSecondaryDark
+                                      : AppColors.textSecondaryLight,
                                 ),
                               ),
                             ],
@@ -268,30 +302,49 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ...FinanceState.accounts.map((acc) {
                       final sym = CurrencyService.getSymbol(acc.currency);
                       return ListTile(
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 4,
+                          vertical: 2,
+                        ),
                         leading: Container(
                           width: 38,
                           height: 38,
                           decoration: BoxDecoration(
-                            color: (acc.color ?? AppColors.primary).withOpacity(0.12),
+                            color: (acc.color ?? AppColors.primary).withOpacity(
+                              0.12,
+                            ),
                             borderRadius: BorderRadius.circular(11),
                           ),
-                          child: Icon(acc.icon, color: acc.color ?? AppColors.primary, size: 18),
+                          child: Icon(
+                            acc.icon,
+                            color: acc.color ?? AppColors.primary,
+                            size: 18,
+                          ),
                         ),
                         title: Text(
                           acc.name,
-                          style: GoogleFonts.inter(fontSize: 13.5, fontWeight: FontWeight.w600),
+                          style: GoogleFonts.inter(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                         subtitle: Text(
                           '${acc.type} | ${acc.currency}',
-                          style: GoogleFonts.inter(fontSize: 11.5, color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight),
+                          style: GoogleFonts.inter(
+                            fontSize: 11.5,
+                            color: isDark
+                                ? AppColors.textSecondaryDark
+                                : AppColors.textSecondaryLight,
+                          ),
                         ),
                         trailing: Text(
                           '$sym${Formatters.amount(acc.balance)}',
                           style: GoogleFonts.inter(
                             fontSize: 14,
                             fontWeight: FontWeight.w700,
-                            color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                            color: isDark
+                                ? AppColors.textPrimaryDark
+                                : AppColors.textPrimaryLight,
                           ),
                         ),
                       );
@@ -313,7 +366,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     String selectedType = 'Bank Account';
     String selectedCurrency = FinanceState.primaryCurrency;
 
-    final types = ['Bank Account', 'Savings', 'Cash Wallet', 'Mobile Money', 'Investment', 'Credit Card'];
+    final types = [
+      'Bank Account',
+      'Savings',
+      'Cash Wallet',
+      'Mobile Money',
+      'Investment',
+      'Credit Card',
+    ];
     final currencies = CurrencyService.rates.keys.toList();
 
     showModalBottomSheet<void>(
@@ -344,7 +404,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     style: GoogleFonts.inter(
                       fontSize: 18,
                       fontWeight: FontWeight.w700,
-                      color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                      color: isDark
+                          ? AppColors.textPrimaryDark
+                          : AppColors.textPrimaryLight,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -352,7 +414,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     'Track accounts in USD, EUR, GBP, ZAR, ZiG, or Pula.',
                     style: GoogleFonts.inter(
                       fontSize: 12,
-                      color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                      color: isDark
+                          ? AppColors.textSecondaryDark
+                          : AppColors.textSecondaryLight,
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -362,13 +426,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     decoration: InputDecoration(
                       labelText: 'Account Name',
                       hintText: 'e.g. Barclays Checking, EcoCash, Euro Card',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 14),
                   Text(
                     'Account Type',
-                    style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600),
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   const SizedBox(height: 6),
                   Wrap(
@@ -385,8 +454,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         selectedColor: AppColors.primary,
                         labelStyle: GoogleFonts.inter(
                           fontSize: 11,
-                          fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                          color: isSelected ? Colors.white : (isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight),
+                          fontWeight: isSelected
+                              ? FontWeight.w700
+                              : FontWeight.w500,
+                          color: isSelected
+                              ? Colors.white
+                              : (isDark
+                                    ? AppColors.textSecondaryDark
+                                    : AppColors.textSecondaryLight),
                         ),
                       );
                     }).toList(),
@@ -394,7 +469,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   const SizedBox(height: 14),
                   Text(
                     'Account Currency',
-                    style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600),
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   const SizedBox(height: 6),
                   Wrap(
@@ -411,8 +489,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         selectedColor: AppColors.accent,
                         labelStyle: GoogleFonts.inter(
                           fontSize: 11,
-                          fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                          color: isSelected ? Colors.white : (isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight),
+                          fontWeight: isSelected
+                              ? FontWeight.w700
+                              : FontWeight.w500,
+                          color: isSelected
+                              ? Colors.white
+                              : (isDark
+                                    ? AppColors.textSecondaryDark
+                                    : AppColors.textSecondaryLight),
                         ),
                       );
                     }).toList(),
@@ -420,12 +504,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   const SizedBox(height: 14),
                   TextField(
                     controller: balanceCtrl,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700),
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    style: GoogleFonts.inter(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
                     decoration: InputDecoration(
                       labelText: 'Starting Balance ($selectedCurrency)',
-                      prefixText: '${CurrencyService.getSymbol(selectedCurrency)} ',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                      prefixText:
+                          '${CurrencyService.getSymbol(selectedCurrency)} ',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 18),
@@ -434,7 +526,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     height: 48,
                     child: FilledButton(
                       onPressed: () async {
-                        final balance = double.tryParse(balanceCtrl.text) ?? 0.0;
+                        final balance =
+                            double.tryParse(balanceCtrl.text) ?? 0.0;
                         final name = nameCtrl.text.trim().isNotEmpty
                             ? nameCtrl.text.trim()
                             : '$selectedCurrency $selectedType';
@@ -455,7 +548,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           color = const Color(0xFFEC4899);
                         } else if (selectedType.contains('Cash')) {
                           icon = Icons.wallet_outlined;
-                          color = const Color(0xFF14B8A6);
+                          color = const Color(0xFF2F80ED);
                         }
 
                         try {
@@ -464,21 +557,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             accountType: selectedType,
                             currency: selectedCurrency,
                             openingBalance: balance,
-                            color: '#${color.value.toRadixString(16).substring(2)}',
+                            color:
+                                '#${color.value.toRadixString(16).substring(2)}',
                             icon: 'account_balance_rounded',
                           );
                           if (!mounted || !sheetCtx.mounted) return;
                           widget.onDataChanged?.call();
                           Navigator.pop(sheetCtx);
                         } catch (error) {
-                          if (sheetCtx.mounted) ScaffoldMessenger.of(sheetCtx).showSnackBar(SnackBar(content: Text(error.toString())));
+                          if (sheetCtx.mounted)
+                            ScaffoldMessenger.of(sheetCtx).showSnackBar(
+                              SnackBar(content: Text(error.toString())),
+                            );
                         }
                       },
                       style: FilledButton.styleFrom(
                         backgroundColor: AppColors.primary,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
                       ),
-                      child: Text('Create Account', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+                      child: Text(
+                        'Create Account',
+                        style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+                      ),
                     ),
                   ),
                 ],
@@ -509,7 +611,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 style: GoogleFonts.inter(
                   fontSize: 18,
                   fontWeight: FontWeight.w700,
-                  color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                  color: isDark
+                      ? AppColors.textPrimaryDark
+                      : AppColors.textPrimaryLight,
                 ),
               ),
               const SizedBox(height: 6),
@@ -517,7 +621,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 'You will return to the welcome screen. Your financial records remain saved to your account.',
                 style: GoogleFonts.inter(
                   fontSize: 13,
-                  color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                  color: isDark
+                      ? AppColors.textSecondaryDark
+                      : AppColors.textSecondaryLight,
                 ),
               ),
               const SizedBox(height: 20),
@@ -527,7 +633,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     child: OutlinedButton(
                       onPressed: () => Navigator.pop(sheetCtx),
                       style: OutlinedButton.styleFrom(
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
                         padding: const EdgeInsets.symmetric(vertical: 13),
                       ),
                       child: const Text('Cancel'),
@@ -542,16 +650,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         try {
                           await GoogleAuthService.instance.signOut();
                         } catch (_) {
-                          // The JIREH session has already been cleared locally.
+                          // The Provida session has already been cleared locally.
                         }
                         Navigator.of(context).pushAndRemoveUntil(
-                          MaterialPageRoute(builder: (_) => const LoginScreen()),
+                          MaterialPageRoute(
+                            builder: (_) => const LoginScreen(),
+                          ),
                           (route) => false,
                         );
                       },
                       style: FilledButton.styleFrom(
                         backgroundColor: AppColors.expense,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
                         padding: const EdgeInsets.symmetric(vertical: 13),
                       ),
                       child: const Text('Sign Out'),
@@ -570,8 +682,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(title, style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
-        content: Text(content, style: GoogleFonts.inter(fontSize: 13.5, height: 1.5)),
+        title: Text(
+          title,
+          style: GoogleFonts.inter(fontWeight: FontWeight.w700),
+        ),
+        content: Text(
+          content,
+          style: GoogleFonts.inter(fontSize: 13.5, height: 1.5),
+        ),
         actions: [
           FilledButton(
             onPressed: () => Navigator.pop(ctx),
@@ -588,20 +706,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final rawDisplayName = _fullName.isNotEmpty
         ? _fullName
-        : (FinanceState.profile['email']?.toString() ?? 'JIREH user');
-    final displayName = rawDisplayName.trim().isEmpty ? 'JIREH user' : rawDisplayName;
-    final initialsParts = displayName.trim().split(RegExp(r'\s+')).where((part) => part.isNotEmpty).toList();
+        : (FinanceState.profile['email']?.toString() ?? 'Provida user');
+    final displayName = rawDisplayName.trim().isEmpty
+        ? 'Provida user'
+        : rawDisplayName;
+    final initialsParts = displayName
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((part) => part.isNotEmpty)
+        .toList();
     final initials = initialsParts.length > 1
         ? '${initialsParts.first[0]}${initialsParts.last[0]}'.toUpperCase()
-        : initialsParts.first.substring(0, initialsParts.first.length > 1 ? 2 : 1).toUpperCase();
+        : initialsParts.first
+              .substring(0, initialsParts.first.length > 1 ? 2 : 1)
+              .toUpperCase();
     final email = FinanceState.profile['email']?.toString() ?? '';
     final phone = FinanceState.profile['phone_number']?.toString() ?? '';
     final country = FinanceState.profile['country']?.toString() ?? '';
-    final totalPortfolio = double.tryParse(FinanceState.dashboard['total_balance']?.toString() ?? '') ?? 0;
+    final totalPortfolio =
+        double.tryParse(
+          FinanceState.dashboard['total_balance']?.toString() ?? '',
+        ) ??
+        0;
     final healthScore = FinanceState.financialHealthScore;
 
     return Scaffold(
-      backgroundColor: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
+      backgroundColor: isDark
+          ? AppColors.backgroundDark
+          : AppColors.backgroundLight,
       body: SafeArea(
         child: CustomScrollView(
           slivers: [
@@ -615,7 +747,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     fontSize: 22,
                     fontWeight: FontWeight.w700,
                     letterSpacing: -0.5,
-                    color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                    color: isDark
+                        ? AppColors.textPrimaryDark
+                        : AppColors.textPrimaryLight,
                   ),
                 ),
               ),
@@ -631,7 +765,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     color: isDark ? AppColors.cardDark : AppColors.cardLight,
                     borderRadius: BorderRadius.circular(22),
                     border: Border.all(
-                      color: isDark ? AppColors.borderDark : AppColors.borderLight,
+                      color: isDark
+                          ? AppColors.borderDark
+                          : AppColors.borderLight,
                     ),
                     boxShadow: [
                       BoxShadow(
@@ -645,7 +781,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     children: [
                       CircleAvatar(
                         radius: 28,
-                        backgroundColor: isDark ? AppColors.primary : AppColors.primary,
+                        backgroundColor: isDark
+                            ? AppColors.primary
+                            : AppColors.primary,
                         child: Text(
                           initials,
                           style: GoogleFonts.inter(
@@ -667,7 +805,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   style: GoogleFonts.inter(
                                     fontSize: 16,
                                     fontWeight: FontWeight.w700,
-                                    color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                                    color: isDark
+                                        ? AppColors.textPrimaryDark
+                                        : AppColors.textPrimaryLight,
                                   ),
                                 ),
                               ],
@@ -677,16 +817,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               email,
                               style: GoogleFonts.inter(
                                 fontSize: 12,
-                                color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                                color: isDark
+                                    ? AppColors.textSecondaryDark
+                                    : AppColors.textSecondaryLight,
                               ),
                             ),
                           ],
                         ),
                       ),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4.5),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 9,
+                          vertical: 4.5,
+                        ),
                         decoration: BoxDecoration(
-                          color: isDark ? AppColors.primary.withOpacity(0.2) : AppColors.primary.withOpacity(0.08),
+                          color: isDark
+                              ? AppColors.primary.withOpacity(0.2)
+                              : AppColors.primary.withOpacity(0.08),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
@@ -695,7 +842,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             fontSize: 9.5,
                             fontWeight: FontWeight.w700,
                             letterSpacing: 0.8,
-                            color: isDark ? AppColors.accentLight : AppColors.primary,
+                            color: isDark
+                                ? AppColors.accentLight
+                                : AppColors.primary,
                           ),
                         ),
                       ),
@@ -710,21 +859,48 @@ class _ProfileScreenState extends State<ProfileScreen> {
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
                   decoration: BoxDecoration(
-                    color: isDark ? AppColors.cardDarkSecondary : const Color(0xFFEFF4ED),
+                    color: isDark
+                        ? AppColors.cardDarkSecondary
+                        : const Color(0xFFEFF4ED),
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
-                      color: isDark ? AppColors.borderDark : const Color(0xFFE2E9DF),
+                      color: isDark
+                          ? AppColors.borderDark
+                          : const Color(0xFFE2E9DF),
                     ),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
-                      _buildStatColumn('Total Portfolio', '${CurrencyService.getSymbol(_selectedCurrency)}${Formatters.amount(totalPortfolio)}', isDark),
-                      Container(width: 1, height: 28, color: isDark ? AppColors.borderDark : const Color(0xFFD6DED3)),
-                      _buildStatColumn('Accounts', '${FinanceState.accounts.length} Linked', isDark),
-                      Container(width: 1, height: 28, color: isDark ? AppColors.borderDark : const Color(0xFFD6DED3)),
+                      _buildStatColumn(
+                        'Total Portfolio',
+                        '${CurrencyService.getSymbol(_selectedCurrency)}${Formatters.amount(totalPortfolio)}',
+                        isDark,
+                      ),
+                      Container(
+                        width: 1,
+                        height: 28,
+                        color: isDark
+                            ? AppColors.borderDark
+                            : const Color(0xFFD6DED3),
+                      ),
+                      _buildStatColumn(
+                        'Accounts',
+                        '${FinanceState.accounts.length} Linked',
+                        isDark,
+                      ),
+                      Container(
+                        width: 1,
+                        height: 28,
+                        color: isDark
+                            ? AppColors.borderDark
+                            : const Color(0xFFD6DED3),
+                      ),
                       _buildStatColumn(
                         'Health Score',
                         healthScore == null
@@ -757,14 +933,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     SettingsTile(
                       icon: Icons.currency_exchange_rounded,
                       title: 'Primary Display Currency',
-                      subtitle: 'Active currency: $_selectedCurrency. Live conversion is on.',
+                      subtitle:
+                          'Active currency: $_selectedCurrency. Live conversion is on.',
                       trailingText: _selectedCurrency,
                       onTap: _openCurrencyPicker,
                     ),
                     SettingsTile(
                       icon: Icons.account_balance_outlined,
                       title: 'Connected Accounts',
-                      subtitle: '${FinanceState.accounts.length} accounts configured',
+                      subtitle:
+                          '${FinanceState.accounts.length} accounts configured',
                       trailingText: '+ Add / Manage',
                       onTap: _openAccountsSheet,
                     ),
@@ -783,7 +961,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     SettingsTile(
                       icon: Icons.fingerprint_rounded,
                       title: 'Device Unlock',
-                      subtitle: 'Require biometrics or your phone passcode on launch',
+                      subtitle:
+                          'Require biometrics or your phone passcode on launch',
                       trailing: Switch.adaptive(
                         value: _biometricsEnabled,
                         activeColor: AppColors.primary,
@@ -808,7 +987,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       icon: Icons.devices_rounded,
                       title: 'Active Sessions',
                       subtitle: 'Session managed by secure sign-in',
-                      onTap: () => _showInfoDialog('Active Session', 'Your sign-in session is stored securely on this device.'),
+                      onTap: () => _showInfoDialog(
+                        'Active Session',
+                        'Your sign-in session is stored securely on this device.',
+                      ),
                     ),
                   ],
                 ),
@@ -832,9 +1014,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         onChanged: (v) async {
                           setState(() => _budgetAlerts = v);
                           try {
-                            await _savePreference('notification_preferences', 'budget_alerts', v);
+                            await _savePreference(
+                              'notification_preferences',
+                              'budget_alerts',
+                              v,
+                            );
                           } catch (error) {
-                            if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
+                            if (mounted)
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text(error.toString())),
+                              );
                           }
                         },
                       ),
@@ -849,9 +1038,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         onChanged: (v) async {
                           setState(() => _billReminders = v);
                           try {
-                            await _savePreference('notification_preferences', 'bill_reminders', v);
+                            await _savePreference(
+                              'notification_preferences',
+                              'bill_reminders',
+                              v,
+                            );
                           } catch (error) {
-                            if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
+                            if (mounted)
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text(error.toString())),
+                              );
                           }
                         },
                       ),
@@ -866,9 +1062,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         onChanged: (v) async {
                           setState(() => _weeklySummary = v);
                           try {
-                            await _savePreference('notification_preferences', 'weekly_summary', v);
+                            await _savePreference(
+                              'notification_preferences',
+                              'weekly_summary',
+                              v,
+                            );
                           } catch (error) {
-                            if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
+                            if (mounted)
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text(error.toString())),
+                              );
                           }
                         },
                       ),
@@ -886,9 +1089,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   title: 'Appearance',
                   children: [
                     SettingsTile(
-                      icon: widget.isDarkMode ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
+                      icon: widget.isDarkMode
+                          ? Icons.dark_mode_rounded
+                          : Icons.light_mode_rounded,
                       title: 'Dark Mode',
-                      subtitle: widget.isDarkMode ? 'Obsidian Slate Palette' : 'Clean Modern Canvas',
+                      subtitle: widget.isDarkMode
+                          ? 'Obsidian Slate Palette'
+                          : 'Clean Modern Canvas',
                       trailing: Switch.adaptive(
                         value: widget.isDarkMode,
                         activeColor: AppColors.accent,
@@ -910,7 +1117,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     SettingsTile(
                       icon: Icons.help_outline_rounded,
                       title: 'Help Center & FAQ',
-                      subtitle: 'Multi-currency rates and account linking guide',
+                      subtitle:
+                          'Multi-currency rates and account linking guide',
                       onTap: () => _showInfoDialog(
                         'Help & Support',
                         'Supported currencies: ${CurrencyService.rates.keys.join(', ')}. Currency conversions use exchange rates configured by the service.\n\nSupport Email: support@myfinance.app',
@@ -959,7 +1167,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       fontSize: 10.5,
                       fontWeight: FontWeight.w600,
                       letterSpacing: 1.2,
-                      color: isDark ? AppColors.textTertiaryDark : AppColors.textSecondaryLight,
+                      color: isDark
+                          ? AppColors.textTertiaryDark
+                          : AppColors.textSecondaryLight,
                     ),
                   ),
                 ),
@@ -978,7 +1188,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           label,
           style: GoogleFonts.inter(
             fontSize: 10.5,
-            color: isDark ? AppColors.textTertiaryDark : AppColors.textSecondaryLight,
+            color: isDark
+                ? AppColors.textTertiaryDark
+                : AppColors.textSecondaryLight,
           ),
         ),
         const SizedBox(height: 2),
@@ -987,7 +1199,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           style: GoogleFonts.inter(
             fontSize: 13.5,
             fontWeight: FontWeight.w700,
-            color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+            color: isDark
+                ? AppColors.textPrimaryDark
+                : AppColors.textPrimaryLight,
           ),
         ),
       ],

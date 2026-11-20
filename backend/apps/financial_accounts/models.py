@@ -22,7 +22,7 @@ class FinancialAccount(models.Model):
     current_balance = models.DecimalField(max_digits=18, decimal_places=2, default=Decimal('0.00'))
     institution_name = models.CharField(max_length=120, blank=True)
     description = models.TextField(blank=True)
-    color = models.CharField(max_length=20, default='#059669')
+    color = models.CharField(max_length=20, default='#2F80ED')
     icon = models.CharField(max_length=60, default='account_balance_rounded')
 
     is_active = models.BooleanField(default=True)

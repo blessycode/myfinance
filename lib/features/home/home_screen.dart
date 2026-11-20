@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -8,6 +10,7 @@ import '../../core/models/models.dart';
 import '../../core/providers/theme_provider.dart';
 import '../../core/services/currency_service.dart';
 import '../../core/services/finance_api.dart';
+import '../../core/services/phone_notification_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/formatters.dart';
 import '../../widgets/account_card.dart';
@@ -17,6 +20,7 @@ import '../../widgets/transaction_tile.dart';
 import '../analytics/analytics_screen.dart';
 import '../budgets/budgets_screen.dart';
 import '../goals/goals_screen.dart';
+import '../groceries/grocery_planner_screen.dart';
 import '../notifications/notifications_screen.dart';
 import '../profile/profile_screen.dart';
 import '../transactions/add_transaction_screen.dart';
@@ -31,6 +35,26 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _navIndex = 0;
+  Timer? _notificationPoll;
+
+  @override
+  void initState() {
+    super.initState();
+    PhoneNotificationService.instance.requestPermission();
+    _notificationPoll = Timer.periodic(const Duration(seconds: 45), (_) async {
+      try {
+        await FinanceApi.instance.refreshNotifications();
+      } catch (_) {
+        // A temporary network failure should not interrupt app use.
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _notificationPoll?.cancel();
+    super.dispose();
+  }
 
   void _refresh() => setState(() {});
 
@@ -147,6 +171,22 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
+                  _buildSheetActionTile(
+                    sheetContext: sheetContext,
+                    icon: Icons.shopping_cart_checkout_rounded,
+                    title: 'Plan Groceries',
+                    subtitle: 'Build a shopping list and estimate the total',
+                    color: AppColors.primary,
+                    onTap: () {
+                      Navigator.pop(sheetContext);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const GroceryPlannerScreen(),
+                        ),
+                      );
+                    },
+                  ),
                   _buildSheetActionTile(
                     sheetContext: sheetContext,
                     icon: Icons.north_east_rounded,
@@ -441,7 +481,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           color = const Color(0xFFEC4899);
                         } else if (selectedType.contains('Cash')) {
                           icon = Icons.wallet_outlined;
-                          color = const Color(0xFF14B8A6);
+                          color = const Color(0xFF2F80ED);
                         }
 
                         try {
@@ -1120,7 +1160,7 @@ class _HomeTabState extends State<_HomeTab> {
                           color = const Color(0xFFEC4899);
                         } else if (selectedType.contains('Cash')) {
                           icon = Icons.wallet_outlined;
-                          color = const Color(0xFF14B8A6);
+                          color = const Color(0xFF2F80ED);
                         }
 
                         try {
@@ -1273,9 +1313,9 @@ class _HomeTabState extends State<_HomeTab> {
             .join(' ');
     final avatarName = profileName.isNotEmpty
         ? profileName
-        : (FinanceState.profile['email']?.toString() ?? 'JIREH');
+        : (FinanceState.profile['email']?.toString() ?? 'Provida');
     final safeAvatarName = avatarName.trim().isEmpty
-        ? 'JIREH'
+        ? 'Provida'
         : avatarName.trim();
     final avatarParts = safeAvatarName
         .split(RegExp(r'\s+'))

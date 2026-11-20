@@ -147,11 +147,11 @@ class ApiClient {
         await clearTokens();
         return false;
       }
-      // Keep the local session when the server is temporarily unavailable.
-      return true;
+      // Fail closed: an unverified session must never open the account.
+      return false;
     } catch (_) {
-      // Keep the saved session if the API is temporarily unreachable.
-      return true;
+      // Network and storage failures must return the user to sign in.
+      return false;
     }
   }
 

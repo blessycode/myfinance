@@ -2,13 +2,13 @@ from .models import Category, CategoryType
 
 DEFAULT_CATEGORIES = [
     # Income
-    ('Salary', CategoryType.INCOME, 'work_rounded', '#10B981'),
-    ('Business', CategoryType.INCOME, 'store_rounded', '#059669'),
-    ('Freelance', CategoryType.INCOME, 'laptop_mac_rounded', '#00D09C'),
-    ('Investments', CategoryType.INCOME, 'trending_up_rounded', '#0D9488'),
-    ('Interest', CategoryType.INCOME, 'savings_rounded', '#14B8A6'),
-    ('Gifts', CategoryType.INCOME, 'card_giftcard_rounded', '#5EEAD4'),
-    ('Other Income', CategoryType.INCOME, 'attach_money_rounded', '#34D399'),
+    ('Salary', CategoryType.INCOME, 'work_rounded', '#2F80ED'),
+    ('Business', CategoryType.INCOME, 'store_rounded', '#5B5FF5'),
+    ('Freelance', CategoryType.INCOME, 'laptop_mac_rounded', '#7B6CF6'),
+    ('Investments', CategoryType.INCOME, 'trending_up_rounded', '#2775E8'),
+    ('Interest', CategoryType.INCOME, 'savings_rounded', '#79A9FF'),
+    ('Gifts', CategoryType.INCOME, 'card_giftcard_rounded', '#9B8AFB'),
+    ('Other Income', CategoryType.INCOME, 'attach_money_rounded', '#4F7DF3'),
 
     # Expense
     ('Food and Dining', CategoryType.EXPENSE, 'restaurant_rounded', '#F43F5E'),
@@ -17,7 +17,7 @@ DEFAULT_CATEGORIES = [
     ('Bills and Utilities', CategoryType.EXPENSE, 'receipt_long_rounded', '#8B5CF6'),
     ('Housing', CategoryType.EXPENSE, 'home_rounded', '#6366F1'),
     ('Healthcare', CategoryType.EXPENSE, 'medical_services_rounded', '#EC4899'),
-    ('Education', CategoryType.EXPENSE, 'school_rounded', '#84CC16'),
+    ('Education', CategoryType.EXPENSE, 'school_rounded', '#FFC247'),
     ('Entertainment', CategoryType.EXPENSE, 'movie_rounded', '#A855F7'),
     ('Personal Care', CategoryType.EXPENSE, 'spa_rounded', '#F97316'),
     ('Travel', CategoryType.EXPENSE, 'flight_takeoff_rounded', '#38BDF8'),

@@ -18,7 +18,7 @@ class DeviceSecurityService {
     }
   }
 
-  /// Whether the device can verify its owner with biometrics or its screen lock.
+  /// Whether the device supports local owner verification.
   Future<bool> get supportsDeviceUnlock async {
     try {
       return await _authentication.isDeviceSupported();
@@ -29,11 +29,10 @@ class DeviceSecurityService {
 
   Future<bool> authenticate({required String reason}) async {
     try {
-      if (!await supportsDeviceUnlock) return false;
+      if (!await hasEnrolledBiometrics) return false;
       return await _authentication.authenticate(
         localizedReason: reason,
-        // Let Android/iOS offer the device PIN, pattern, or passcode fallback.
-        biometricOnly: false,
+        biometricOnly: true,
         persistAcrossBackgrounding: true,
       );
     } on LocalAuthException {

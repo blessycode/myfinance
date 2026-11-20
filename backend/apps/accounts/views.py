@@ -71,7 +71,7 @@ class GoogleLoginView(views.APIView):
     @extend_schema(
         request=GoogleLoginSerializer,
         responses={200: OpenApiResponse(description="Google account authenticated and API tokens returned")},
-        summary="Verify a Google ID token and issue JIREH API tokens",
+        summary="Verify a Google ID token and issue Provida API tokens",
     )
     def post(self, request):
         if not settings.GOOGLE_CLIENT_ID:

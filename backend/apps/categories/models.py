@@ -19,7 +19,7 @@ class Category(models.Model):
     name = models.CharField(max_length=80)
     type = models.CharField(max_length=10, choices=CategoryType.choices, default=CategoryType.EXPENSE)
     icon = models.CharField(max_length=60, default='category')
-    color = models.CharField(max_length=20, default='#10B981')
+    color = models.CharField(max_length=20, default='#5B5FF5')
     is_system = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 

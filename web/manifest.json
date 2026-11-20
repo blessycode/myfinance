@@ -1,11 +1,11 @@
 {
-    "name": "JIREH",
-    "short_name": "JIREH",
+    "name": "Provida",
+    "short_name": "Provida",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#FFFFFF",
-    "theme_color": "#059669",
-    "description": "JIREH personal finance and money management.",
+    "theme_color": "#5B5FF5",
+    "description": "Provida personal finance and planning.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

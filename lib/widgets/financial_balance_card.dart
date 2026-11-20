@@ -31,7 +31,7 @@ class FinancialBalanceCard extends StatelessWidget {
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        gradient: AppColors.emeraldCardGradient,
+        gradient: AppColors.heroCardGradient,
         borderRadius: BorderRadius.circular(26),
         boxShadow: [
           BoxShadow(

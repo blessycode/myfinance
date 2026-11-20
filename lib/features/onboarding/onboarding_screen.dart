@@ -87,7 +87,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       borderRadius: BorderRadius.circular(11),
                     ),
                     clipBehavior: Clip.antiAlias,
-                    child: Image.asset(AppBrand.logoAsset, fit: BoxFit.cover),
+                    child: const AppBrandMark(size: 72),
                   ),
                   const SizedBox(width: 10),
                   Text(
@@ -295,7 +295,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           width: 132,
           height: 132,
           decoration: BoxDecoration(
-            gradient: AppColors.emeraldCardGradient,
+            gradient: AppColors.heroCardGradient,
             borderRadius: BorderRadius.circular(38),
             boxShadow: [BoxShadow(color: AppColors.primaryDark.withOpacity(0.25), blurRadius: 24, offset: const Offset(0, 10))],
           ),

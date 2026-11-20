@@ -15,7 +15,7 @@ class SavingsGoal(models.Model):
     currency = models.CharField(max_length=6, default='USD')
     target_date = models.DateField()
     description = models.TextField(blank=True)
-    color = models.CharField(max_length=20, default='#059669')
+    color = models.CharField(max_length=20, default='#5B5FF5')
     is_completed = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 

@@ -221,13 +221,13 @@ class _LoginScreenState extends State<LoginScreen> {
                             ],
                           ),
                           clipBehavior: Clip.antiAlias,
-                          child: Image.asset(AppBrand.logoAsset, fit: BoxFit.cover),
+                          child: const AppBrandMark(size: 72),
                         ),
                         const Spacer(),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4.5),
                           decoration: BoxDecoration(
-                            color: isDark ? AppColors.cardDarkSecondary : const Color(0xFFEFF3EE),
+                            color: isDark ? AppColors.cardDarkSecondary : const Color(0xFFF0F2FF),
                             borderRadius: BorderRadius.circular(10),
                             border: Border.all(
                               color: isDark ? AppColors.borderDark : AppColors.borderLight,
@@ -468,7 +468,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       width: double.infinity,
                       padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
-                        color: isDark ? AppColors.cardDarkSecondary : const Color(0xFFEFF3EE),
+                        color: isDark ? AppColors.cardDarkSecondary : const Color(0xFFF0F2FF),
                         borderRadius: BorderRadius.circular(14),
                         border: Border.all(
                           color: isDark ? AppColors.borderDark : AppColors.borderLight,
@@ -485,7 +485,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           const SizedBox(width: 10),
                           Expanded(
                             child: Text(
-                              'Sign in or create an account to connect securely to your JIREH account.',
+                              'Sign in or create an account to connect securely to Provida.',
                               style: GoogleFonts.inter(
                                 fontSize: 11.5,
                                 height: 1.45,

@@ -9,7 +9,7 @@ import '../../core/services/api_client.dart';
 import '../../core/services/finance_api.dart';
 import '../home/home_screen.dart';
 import '../auth/login_screen.dart';
-import '../onboarding/onboarding_screen.dart';
+import 'biometric_lock_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -25,10 +25,6 @@ class _SplashScreenState extends State<SplashScreen> {
     Future<void>(() async {
       final hasSession = await ApiClient.instance.restoreSession();
       final preferences = await SharedPreferences.getInstance();
-      final hasSeenWelcome = preferences.getBool('welcome_pages_seen') ?? false;
-      if (!hasSeenWelcome) {
-        await preferences.setBool('welcome_pages_seen', true);
-      }
       if (hasSession) {
         try {
           await FinanceApi.instance.refresh();
@@ -36,20 +32,22 @@ class _SplashScreenState extends State<SplashScreen> {
           // Keep the user signed in; screens show empty state and can retry.
         }
       }
-      final biometricEnabled = preferences.getBool('jireh_biometric_unlock') ?? false;
+      final biometricEnabled = preferences.getBool('provida_biometric_unlock') ??
+          preferences.getBool('jireh_biometric_unlock') ??
+          false;
       final unlocked = !hasSession || !biometricEnabled ||
           await DeviceSecurityService.instance.authenticate(
-            reason: 'Unlock JIREH to view your finances',
+            reason: 'Unlock Provida to view your finances',
           );
       await Future<void>.delayed(const Duration(milliseconds: 1600));
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
         PageRouteBuilder<void>(
-          pageBuilder: (_, __, ___) => hasSession && unlocked
-              ? const HomeScreen()
-              : hasSeenWelcome
-                  ? const LoginScreen()
-                  : const OnboardingScreen(),
+          pageBuilder: (_, __, ___) => !hasSession
+              ? const LoginScreen()
+              : unlocked
+                  ? const HomeScreen()
+                  : const BiometricLockScreen(),
           transitionsBuilder: (_, animation, __, child) =>
               FadeTransition(opacity: animation, child: child),
           transitionDuration: const Duration(milliseconds: 400),
@@ -110,10 +108,7 @@ class _SplashScreenState extends State<SplashScreen> {
                       ),
                     ],
                   ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(24),
-                    child: Image.asset(AppBrand.logoAsset, fit: BoxFit.cover),
-                  ),
+                  child: const AppBrandMark(size: 76),
                 )
                     .animate()
                     .fadeIn(duration: 500.ms)

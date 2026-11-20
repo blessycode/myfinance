@@ -114,7 +114,7 @@ class ReportExportService:
             'TitleStyle',
             parent=styles['Heading1'],
             fontSize=20,
-            textColor=colors.HexColor('#059669'),
+            textColor=colors.HexColor('#5B5FF5'),
             spaceAfter=10
         )
         subtitle_style = ParagraphStyle(
@@ -125,7 +125,7 @@ class ReportExportService:
             spaceAfter=15
         )
 
-        elements.append(Paragraph("JIREH Official Statement", title_style))
+        elements.append(Paragraph("Provida Official Statement", title_style))
         period_str = f"Generated on {timezone.now().strftime('%Y-%m-%d %H:%M:%S UTC')} for {user.email}"
         elements.append(Paragraph(period_str, subtitle_style))
         elements.append(Spacer(1, 10))
@@ -149,7 +149,7 @@ class ReportExportService:
 
         t_table = Table(data, colWidths=[65, 60, 95, 95, 140, 85])
         t_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#059669')),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#5B5FF5')),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
             ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
             ('ALIGN', (-1, 0), (-1, -1), 'RIGHT'),

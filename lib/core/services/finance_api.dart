@@ -3,6 +3,7 @@ import '../data/finance_state.dart';
 import '../models/models.dart';
 import 'api_client.dart';
 import 'currency_service.dart';
+import 'phone_notification_service.dart';
 
 class FinanceApi {
   FinanceApi._();
@@ -44,6 +45,7 @@ class FinanceApi {
     FinanceState.goals = _rows(second[2]).map(_goal).toList();
     FinanceState.bills = _rows(second[3]).map(_bill).toList();
     FinanceState.notifications = _rows(second[4]);
+    await PhoneNotificationService.instance.showNewNotifications(FinanceState.notifications);
     FinanceState.dashboard = _map(second[5]);
     FinanceState.categorySpending = {
       for (final row in _rows(second[6]))
@@ -59,6 +61,7 @@ class FinanceApi {
 
   Future<void> refreshNotifications() async {
     FinanceState.notifications = await _getRows('notifications/');
+    await PhoneNotificationService.instance.showNewNotifications(FinanceState.notifications);
   }
 
   Future<Map<String, dynamic>> createAccount(Map<String, dynamic> data) async =>
@@ -207,11 +210,23 @@ class FinanceApi {
 
   static double _number(dynamic value) => double.tryParse(value?.toString() ?? '') ?? 0;
 
-  static Color _color(dynamic value, [Color fallback = const Color(0xFF059669)]) {
+  static Color _color(dynamic value, [Color fallback = const Color(0xFF5B5FF5)]) {
     final raw = value?.toString().replaceFirst('#', '');
     if (raw == null) return fallback;
     final parsed = int.tryParse(raw, radix: 16);
     if (parsed == null) return fallback;
+    const legacyGreenReplacements = <int, int>{
+      0x059669: 0x5B5FF5,
+      0x10B981: 0x2F80ED,
+      0x00D09C: 0x7B6CF6,
+      0x0D9488: 0x2775E8,
+      0x14B8A6: 0x2F80ED,
+      0x5EEAD4: 0x79A9FF,
+      0x34D399: 0x4F7DF3,
+      0x84CC16: 0xFFC247,
+    };
+    final replacement = legacyGreenReplacements[parsed];
+    if (replacement != null) return Color(0xFF000000 | replacement);
     return Color(raw.length == 6 ? 0xFF000000 | parsed : parsed);
   }
 

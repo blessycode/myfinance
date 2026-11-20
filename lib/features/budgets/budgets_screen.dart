@@ -124,7 +124,7 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
                         'period': 'monthly',
                         'start_date': monthStart.toIso8601String().split('T').first,
                         'end_date': monthEnd.toIso8601String().split('T').first,
-                        'color': '#10B981',
+                        'color': '#5B5FF5',
                       });
                       await FinanceApi.instance.refresh();
                       if (!mounted || !sheetCtx.mounted) return;
@@ -182,7 +182,7 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
                 child: Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    gradient: AppColors.emeraldCardGradient,
+                    gradient: AppColors.heroCardGradient,
                     borderRadius: BorderRadius.circular(24),
                     boxShadow: [
                       BoxShadow(
