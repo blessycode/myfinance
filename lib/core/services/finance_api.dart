@@ -210,22 +210,20 @@ class FinanceApi {
 
   static double _number(dynamic value) => double.tryParse(value?.toString() ?? '') ?? 0;
 
-  static Color _color(dynamic value, [Color fallback = const Color(0xFF5B5FF5)]) {
+  static Color _color(dynamic value, [Color fallback = const Color(0xFF0B6B55)]) {
     final raw = value?.toString().replaceFirst('#', '');
     if (raw == null) return fallback;
     final parsed = int.tryParse(raw, radix: 16);
     if (parsed == null) return fallback;
-    const legacyGreenReplacements = <int, int>{
-      0x059669: 0x5B5FF5,
-      0x10B981: 0x2F80ED,
-      0x00D09C: 0x7B6CF6,
-      0x0D9488: 0x2775E8,
-      0x14B8A6: 0x2F80ED,
-      0x5EEAD4: 0x79A9FF,
-      0x34D399: 0x4F7DF3,
-      0x84CC16: 0xFFC247,
+    const legacyBrandReplacements = <int, int>{
+      0x5B5FF5: 0x0B6B55,
+      0x2F80ED: 0x18A86B,
+      0x7B6CF6: 0x20B77A,
+      0x2775E8: 0x087A58,
+      0x79A9FF: 0x9AE6C0,
+      0x4F7DF3: 0x18A86B,
     };
-    final replacement = legacyGreenReplacements[parsed];
+    final replacement = legacyBrandReplacements[parsed];
     if (replacement != null) return Color(0xFF000000 | replacement);
     return Color(raw.length == 6 ? 0xFF000000 | parsed : parsed);
   }

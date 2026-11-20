@@ -130,18 +130,24 @@ class FinancialBalanceCard extends StatelessWidget {
 
                 // Main balance figure
                 Row(
-                  crossAxisAlignment: CrossAxisAlignment.baseline,
-                  textBaseline: TextBaseline.alphabetic,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    Text(
-                      isBalanceVisible
-                          ? '${CurrencyService.getSymbol(currency)}${Formatters.amount(totalBalance)}'
-                          : '••••••••',
-                      style: GoogleFonts.inter(
-                        fontSize: 34,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: -1.0,
-                        color: Colors.white,
+                    Expanded(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          isBalanceVisible
+                              ? '${CurrencyService.getSymbol(currency)}${Formatters.amount(totalBalance)}'
+                              : '••••••••',
+                          maxLines: 1,
+                          style: GoogleFonts.inter(
+                            fontSize: 34,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: -1.0,
+                            color: Colors.white,
+                          ),
+                        ),
                       ),
                     ),
                     const SizedBox(width: 8),

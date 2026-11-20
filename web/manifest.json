@@ -4,7 +4,7 @@
     "start_url": ".",
     "display": "standalone",
     "background_color": "#FFFFFF",
-    "theme_color": "#5B5FF5",
+    "theme_color": "#0B6B55",
     "description": "Provida personal finance and planning.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,

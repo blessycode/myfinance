@@ -124,7 +124,7 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
                         'period': 'monthly',
                         'start_date': monthStart.toIso8601String().split('T').first,
                         'end_date': monthEnd.toIso8601String().split('T').first,
-                        'color': '#5B5FF5',
+                        'color': '#0B6B55',
                       });
                       await FinanceApi.instance.refresh();
                       if (!mounted || !sheetCtx.mounted) return;

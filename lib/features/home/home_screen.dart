@@ -481,7 +481,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           color = const Color(0xFFEC4899);
                         } else if (selectedType.contains('Cash')) {
                           icon = Icons.wallet_outlined;
-                          color = const Color(0xFF2F80ED);
+                          color = AppColors.primary;
                         }
 
                         try {
@@ -1160,7 +1160,7 @@ class _HomeTabState extends State<_HomeTab> {
                           color = const Color(0xFFEC4899);
                         } else if (selectedType.contains('Cash')) {
                           icon = Icons.wallet_outlined;
-                          color = const Color(0xFF2F80ED);
+                          color = AppColors.primary;
                         }
 
                         try {
